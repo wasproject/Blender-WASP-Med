@@ -29,11 +29,134 @@ status_list = ["scan", "remesh", "sculpt", "deform", "crop", "generate", "print"
 #    ob.tissue_tessellate.generator = operator.generator
 #    return ob
 
+def update_smooth(self, context):
+    ob = context.object
+    try:
+        mod = ob.modifiers["CorrectiveSmooth"]
+    except:
+        ob.modifiers.new(type='CORRECTIVE_SMOOTH', name="CorrectiveSmooth")
+        mod = ob.modifiers["CorrectiveSmooth"]
+    mod.vertex_group = "Smooth"
+    mod.invert_vertex_group = True
+    mod.use_only_smooth = True
+    mod.use_pin_boundary = True
+    mod.iterations = ob.waspmed_prop.smooth_iterations
+    mod.factor = 1
+    mod.show_viewport = ob.waspmed_prop.bool_smooth
+    bpy.ops.object.modifier_move_up(modifier = mod.name)
+
+
+def update_trim_bottom(self, context):
+    if True:
+        ob = context.object
+        if ob.waspmed_prop.status < 6: return
+        min_x, min_y, min_z = max_x, max_y, max_z = ob.matrix_world * ob.data.vertices[0].co
+        init_z = True
+        for v in ob.data.vertices:
+            # store vertex world coordinates
+            world_co = ob.matrix_world * v.co
+            min_x = min(min_x, world_co[0])
+            min_y = min(min_y, world_co[1])
+            max_x = max(max_x, world_co[0])
+            max_y = max(max_y, world_co[1])
+            try:
+                if ob.vertex_groups["Smooth"].weight(v.index) > 0.5:
+                    if init_z:
+                        min_z = max_z = world_co[2]
+                        init_z = False
+                    else:
+                        min_z = min(min_z, world_co[2])
+                        max_z = max(max_z, world_co[2])
+            except:
+                pass
+        loc = (
+            (min_x + max_x)/2,
+            (min_y + max_y)/2,
+            (min_z + max_z)/2,
+            )
+        try:
+            box = bpy.data.objects["Crop_Box"]
+            box.location = loc
+        except:
+            bpy.ops.mesh.primitive_cube_add(location=loc,
+                radius = max(max_x - min_x, max_y - min_y)/2 + 2)
+            box = bpy.context.object
+        box.dimensions[2] = max_z - min_z + ob.waspmed_prop.trim_bottom*2
+        box.name = "Crop_Box"
+        bpy.context.scene.objects.active = ob
+        ob.select = True
+        box.draw_type = 'WIRE'
+        box.parent = ob
+        box.hide_select = True
+        box.select = False
+        try:
+            mod = ob.modifiers["Crop"]
+        except:
+            ob.modifiers.new(type="BOOLEAN", name="Crop")
+            mod = ob.modifiers["Crop"]
+        mod.object = box
+        mod.operation = 'INTERSECT'
+        mod.solver = 'CARVE'
+        if ob.waspmed_prop.bool_trim_bottom:
+            mod.show_viewport = False
+            context.scene.update()
+        mod.show_viewport = ob.waspmed_prop.bool_trim_bottom
+
+    #except:
+    #    pass
+
+def update_thickness(self, context):
+    try:
+        ob = bpy.context.object
+        mod = ob.modifiers['Solidify']
+        min_t = ob.waspmed_prop.min_thickness
+        max_t = ob.waspmed_prop.max_thickness
+        mod.thickness = max_t
+        mod.thickness_vertex_group = min_t / max_t
+    except:
+        pass
+
 class waspmed_object_prop(bpy.types.PropertyGroup):
     patientID = bpy.props.StringProperty()
     status = bpy.props.IntProperty(default=0)
     zscale = bpy.props.FloatProperty(default=1)
     merge = bpy.props.BoolProperty()
+    min_thickness = bpy.props.FloatProperty(
+        name="Min", default=3, min=0.01, soft_max=10,
+        description="Max Thickness",
+        unit = 'LENGTH',
+        update = update_thickness
+        )
+    max_thickness = bpy.props.FloatProperty(
+        name="Max", default=6, min=0.01, soft_max=10,
+        description="Max Thickness",
+        unit = 'LENGTH',
+        update = update_thickness
+        )
+    bool_trim_bottom = bpy.props.BoolProperty(
+        name = "Trim",
+        description = "Create a flat bottom",
+        default = False,
+        update = update_trim_bottom
+        )
+    trim_bottom = bpy.props.FloatProperty(
+        name="Distance", default=5, min=0.01, soft_max=50,
+        description="Trim distance for the bottom",
+        unit = 'LENGTH',
+        update = update_trim_bottom
+        )
+    bool_smooth = bpy.props.BoolProperty(
+        name = "Smooth",
+        description = "Smooth body",
+        default = False,
+        update = update_smooth
+        )
+    smooth_iterations = bpy.props.IntProperty(
+        name="Iterations", default=100, min=0, soft_max=1000,
+        description="Corrective Smooth Iterations",
+        update = update_smooth
+        )
+
 
 class waspmed_scene_prop(bpy.types.PropertyGroup):
     do_setup = bpy.props.BoolProperty(default=True)
@@ -124,7 +247,12 @@ class waspmed_next(bpy.types.Operator):
             next_status = status_list[status+1]
             if status == 0 and init_object:
                 ob.name = "00_" + patientID + "_" + old_status
-            bpy.ops.object.duplicate_move()
+            if status == 5:
+                bpy.ops.object.weight_thickness()
+                bpy.context.object.waspmed_prop.patientID = patientID
+            else:
+                bpy.ops.object.duplicate_move()
+            bpy.ops.object.mode_set(mode='OBJECT')
             bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
             new_ob = context.object
             new_ob.waspmed_prop.status = status + 1
@@ -140,10 +268,11 @@ class waspmed_next(bpy.types.Operator):
             bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
         else: bpy.ops.object.mode_set(mode='OBJECT')
 
-        for vg in new_ob.vertex_groups: new_ob.vertex_groups.remove(vg)
-        for mod in new_ob.modifiers:
-            #new_ob.modifiers.remove(mod)
-            bpy.ops.object.modifier_apply(apply_as='DATA', modifier=mod.name)
+        if status != 5:
+            for vg in new_ob.vertex_groups: new_ob.vertex_groups.remove(vg)
+            for mod in new_ob.modifiers:
+                #new_ob.modifiers.remove(mod)
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier=mod.name)
         return {'FINISHED'}
 
 class waspmed_back(bpy.types.Operator):
@@ -408,7 +537,10 @@ class waspmed_progress_panel(View3DPaintPanel, bpy.types.Panel):
         col.separator()
         row = col.row(align=True)
         row.operator("object.waspmed_back", icon='BACK')#, text="")
-        row.operator("object.waspmed_next", icon='FORWARD')#, text="")
+        if context.object.waspmed_prop.status == 6:
+            row.operator("export_mesh.stl", icon='EXPORT')#, text="")
+        else:
+            row.operator("object.waspmed_next", icon='FORWARD')#, text="")
 
 class waspmed_scan_panel(View3DPaintPanel, bpy.types.Panel):
 #class waspmed_scan_panel(, bpy.types.View3DPaintPanel):
@@ -462,7 +594,11 @@ class waspmed_scan_panel(View3DPaintPanel, bpy.types.Panel):
         '''
         #col.template_preview(bpy.data.textures['.hidden'], show_buttons=False)
         col.separator()
-        col.label(text="Utils:")
+
+
+        box = layout.box()
+        col = box.column(align=True)
+        #col.label(text="Utils:")
         col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
         col.separator()
         if context.mode == 'PAINT_WEIGHT':
