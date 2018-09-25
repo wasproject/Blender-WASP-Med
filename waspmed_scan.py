@@ -36,6 +36,7 @@ def update_smooth(self, context):
     except:
         ob.modifiers.new(type='CORRECTIVE_SMOOTH', name="CorrectiveSmooth")
         mod = ob.modifiers["CorrectiveSmooth"]
+        bpy.ops.object.modifier_move_up(modifier = mod.name)
     mod.vertex_group = "Smooth"
     mod.invert_vertex_group = True
     mod.use_only_smooth = True
@@ -43,11 +44,11 @@ def update_smooth(self, context):
     mod.iterations = ob.waspmed_prop.smooth_iterations
     mod.factor = 1
     mod.show_viewport = ob.waspmed_prop.bool_smooth
-    bpy.ops.object.modifier_move_up(modifier = mod.name)
 
 
 def update_trim_bottom(self, context):
     if True:
+        margin = 10
         ob = context.object
         if ob.waspmed_prop.status < 6: return
         min_x, min_y, min_z = max_x, max_y, max_z = ob.matrix_world * ob.data.vertices[0].co
@@ -55,10 +56,10 @@ def update_trim_bottom(self, context):
         for v in ob.data.vertices:
             # store vertex world coordinates
             world_co = ob.matrix_world * v.co
-            min_x = min(min_x, world_co[0])
-            min_y = min(min_y, world_co[1])
-            max_x = max(max_x, world_co[0])
-            max_y = max(max_y, world_co[1])
+            min_x = min(min_x, world_co[0])-margin
+            min_y = min(min_y, world_co[1])-margin
+            max_x = max(max_x, world_co[0])+margin
+            max_y = max(max_y, world_co[1])+margin
             try:
                 if ob.vertex_groups["Smooth"].weight(v.index) > 0.5:
                     if init_z:
@@ -111,8 +112,21 @@ def update_thickness(self, context):
         mod = ob.modifiers['Solidify']
         min_t = ob.waspmed_prop.min_thickness
         max_t = ob.waspmed_prop.max_thickness
+        if min_t == 0:
+            ob.modifiers['Mask'].vertex_group = "Smooth"
+            ob.modifiers['Mask'].show_viewport = True
+            ob.modifiers["Mask"].show_render = True
+        else:
+            ob.modifiers['Mask'].show_viewport = False
+            ob.modifiers["Mask"].show_render = False
         mod.thickness = max_t
         mod.thickness_vertex_group = min_t / max_t
+    except:
+        pass
+
+def update_crop(self, context):
+    try:
+        bpy.ops.object.crop_geometry()
     except:
         pass
 
@@ -122,7 +136,7 @@ class waspmed_object_prop(bpy.types.PropertyGroup):
     zscale = bpy.props.FloatProperty(default=1)
     merge = bpy.props.BoolProperty()
     min_thickness = bpy.props.FloatProperty(
-        name="Min", default=3, min=0.01, soft_max=10,
+        name="Min", default=3, min=0.0, soft_max=10,
         description="Max Thickness",
         unit = 'LENGTH',
         update = update_thickness
@@ -156,6 +170,13 @@ class waspmed_object_prop(bpy.types.PropertyGroup):
         description="Corrective Smooth Iterations",
         update = update_smooth
         )
+    plane_cap = bpy.props.BoolProperty(
+        name="Cap", default=False,
+        description="Fill the section area",
+        update = update_crop
+        )
+
+
 
 
 class waspmed_scene_prop(bpy.types.PropertyGroup):
@@ -249,6 +270,16 @@ class waspmed_next(bpy.types.Operator):
                 ob.name = "00_" + patientID + "_" + old_status
             if status == 5:
                 bpy.ops.object.weight_thickness()
+                new_ob = context.object
+                update_smooth(new_ob, context)
+                new_ob.modifiers.new(type='MASK', name="Mask")
+                bpy.ops.object.modifier_move_up(modifier = "Mask")
+                #new_ob.modifiers["Mask"].vertex_group = "Smooth"
+
+                #new_ob.modifiers.new(type='CORRECTIVE_SMOOTH', name="CorrectiveSmooth")
+                #bpy.ops.object.modifier_move_up(modifier = new_ob.modifiers[-1].name)
+                new_ob.modifiers.new(type="BOOLEAN", name="Crop")
+
                 bpy.context.object.waspmed_prop.patientID = patientID
             else:
                 bpy.ops.object.duplicate_move()

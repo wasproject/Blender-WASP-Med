@@ -23,6 +23,30 @@ import numpy as np
 from math import sqrt, radians
 import random
 
+class smooth_weight(bpy.types.Operator):
+    bl_idname = "object.smooth_weight"
+    bl_label = "Smooth Weight"
+    bl_description = ("")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    factor = bpy.props.FloatProperty(
+        name="Factor", default=0.5, min=0, max=1)
+    repeat = bpy.props.IntProperty(
+        name="Max Thickness", default=1, min=0, soft_max=20,
+        description="Thickness in the red area")
+    expand = bpy.props.FloatProperty(
+        name="Expand/Contract", default=0, min=-1, max=1)
+
+    @classmethod
+    def poll(cls, context):
+        return len(context.object.vertex_groups) > 0
+
+    def execute(self, context):
+        context.object.data.use_paint_mask_vertex = True
+        bpy.ops.paint.vert_select_all(action='SELECT')
+        bpy.ops.object.vertex_group_smooth(factor=self.factor, repeat=self.repeat, expand=self.expand)
+        context.object.data.use_paint_mask_vertex = False
+        return {'FINISHED'}
 
 class weight_thickness(bpy.types.Operator):
     bl_idname = "object.weight_thickness"
@@ -364,7 +388,7 @@ class waspmed_generate_panel(View3DPaintPanel, bpy.types.Panel):
             col.operator("object.set_weight_paint", icon="BRUSH_DATA")
 
         col.separator()
-        col.operator("object.weight_thickness", icon="BRUSH_LAYER")
+        col.operator("object.smooth_weight", icon="SMOOTHCURVE")
 
         box = layout.box()
         col = box.column(align=True)
@@ -380,6 +404,7 @@ def register():
     bpy.utils.register_class(waspmed_generate_panel)
     bpy.utils.register_class(weight_thickness)
     bpy.utils.register_class(set_weight_paint)
+    bpy.utils.register_class(smooth_weight)
     #bpy.utils.register_class(object.back)
 
 
@@ -387,6 +412,7 @@ def unregister():
     bpy.utils.unregister_class(waspmed_generate_panel)
     bpy.utils.unregister_class(weight_thickness)
     bpy.utils.unregister_class(set_weight_paint)
+    bpy.utils.unregister_class(smooth_weight)
     #bpy.utils.unregister_class(back)
 
 
