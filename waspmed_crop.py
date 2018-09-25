@@ -21,7 +21,7 @@ import bpy
 from mathutils import Vector
 import numpy as np
 from math import sqrt, radians, pi
-import random
+import random, re
 
 
 class crop_geometry(bpy.types.Operator):
@@ -31,7 +31,10 @@ class crop_geometry(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        ob = context.object
+        active_object = context.object
+        ob = active_object.parent
+        if ob == None: ob = active_object
+        context.scene.objects.active = ob
         patientID = ob.waspmed_prop.patientID
         status = ob.waspmed_prop.status
         for o in bpy.data.objects:
@@ -43,29 +46,211 @@ class crop_geometry(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='EDIT')
 
         side = False
-        bpy.ops.mesh.select_all(action='SELECT')
-        locx = bpy.data.objects['Plane X0'].constraints[0].min_x
-        bpy.ops.mesh.bisect(plane_co=(locx,0,0), plane_no=(-1,0,0), use_fill=side, clear_outer=True)
-
-        bpy.ops.mesh.select_all(action='SELECT')
-        locx = bpy.data.objects['Plane X1'].constraints[0].max_x
-        bpy.ops.mesh.bisect(plane_co=(locx,0,0), plane_no=(1,0,0), use_fill=side, clear_outer=True)
-
-        bpy.ops.mesh.select_all(action='SELECT')
-        locz = bpy.data.objects['Plane Z0'].constraints[0].min_z
-        bpy.ops.mesh.bisect(plane_co=(0,0,locz), plane_no=(0,0,-1), use_fill=False, clear_outer=True)
-
-        bpy.ops.mesh.select_all(action='SELECT')
-        locz = bpy.data.objects['Plane Z1'].constraints[0].max_z
-        bpy.ops.mesh.bisect(plane_co=(0,0,locz), plane_no=(0,0,1), use_fill=False, clear_outer=True)
-
+        planes = ["Plane X0", "Plane X1", "Plane Y0", "Plane Y1", "Plane Z0", "Plane Z1"]
+        for plane_name in planes:
+            try:
+                bpy.ops.mesh.select_all(action='SELECT')
+                plane = bpy.data.objects[plane_name]
+                loc = plane.location
+                nor = plane.data.polygons[0].normal# * plane.matrix_world
+                matrix = plane.matrix_world
+                matrix_new = matrix.to_3x3().inverted().transposed()
+                nor = matrix_new * nor
+                nor.normalize()
+                bpy.ops.mesh.bisect(plane_co=loc, plane_no=nor, use_fill=plane.waspmed_prop.plane_cap, clear_outer=True)
+            except: pass
 
         bpy.ops.object.mode_set(mode='OBJECT')
-        return {'FINISHED'}
 
+        context.scene.objects.active = active_object
+        return {'FINISHED'}
 
 class define_crop_planes(bpy.types.Operator):
     bl_idname = "object.define_crop_planes"
+    bl_label = "Define Crop Planes"
+    bl_description = ("")
+    bl_options = {'REGISTER', 'UNDO'}
+
+    x_planes = bpy.props.BoolProperty(
+        name="X Planes", default=True,
+        description="Generate X Planes")
+    y_planes = bpy.props.BoolProperty(
+        name="Y Planes", default=True,
+        description="Generate Y Planes")
+    z_planes = bpy.props.BoolProperty(
+        name="Z Planes", default=True,
+        description="Generate Z Planes")
+
+    @classmethod
+    def poll(cls, context):
+        if context.mode == 'OBJECT':
+            ob = context.object
+            if ob.type == 'MESH': return True
+            elif ob.type == 'EMPTY' and ob.parent != None: return True
+            else: return False
+        else: return False
+
+    def draw(self, context):
+        layout = self.layout
+        #layout.label(text="Examples")
+        ob = context.object
+        col=layout.column(align=True)
+        col.prop(self, "x_planes")
+        col.prop(self, "y_planes")
+        col.prop(self, "z_planes")
+
+    def execute(self, context):
+        active_object = context.object
+        ob = active_object.parent
+        if ob == None: ob = active_object
+
+        if ob.type == 'EMPTY':
+            empty = ob
+            ob = empty.parent
+            bpy.data.objects.remove(empty)
+        for c in ob.children:
+            #if c.type == 'EMPTY':
+            bpy.data.objects.remove(c)
+
+        patientID = ob.waspmed_prop.patientID
+        status = ob.waspmed_prop.status
+        for o in bpy.data.objects:
+            id = o.waspmed_prop.patientID
+            s = o.waspmed_prop.status
+            if patientID == id and s == status-1:
+                ob.data = o.to_mesh(bpy.context.scene, apply_modifiers=True,
+                settings='PREVIEW')
+        #bpy.ops.object.empty_add(type='CUBE')
+        #empty = context.object
+
+        #context.scene.objects.active = ob
+        #ob.select = True
+        #bpy.ops.object.parent_set(type='OBJECT', keep_transform=True)
+
+        #empty.parent = ob
+        bb0 = Vector(ob.bound_box[0])
+        bb1 = Vector(ob.bound_box[6])
+        bb_origin = (bb0+bb1)/2
+        bb_size = bb1-bb0
+        #empty.location = bb_origin
+
+        alpha = 0.4
+
+        planes = []
+
+        # Planes X
+        if self.x_planes:
+            bpy.ops.mesh.primitive_plane_add(
+                radius=1000,
+                location=(bb_origin.x - bb_size.x/2, bb_origin.y, bb_origin.z),
+                rotation=(0, -pi/2, 0))
+            plane_x0 = context.object
+            plane_x0.name = "Plane X0"
+            plane_x0.dimensions = ob.dimensions.zyx
+
+            mat = bpy.data.materials.new(name="X Planes")
+            context.object.data.materials.append(mat)
+            context.object.active_material.diffuse_color = (1, 1, 1)
+            context.object.active_material.use_transparency = True
+            context.object.active_material.alpha = alpha
+            context.object.active_material.use_object_color = True
+
+            bpy.ops.mesh.primitive_plane_add(
+                radius=1000,
+                location=(bb_origin.x + bb_size.x/2, bb_origin.y, bb_origin.z),
+                rotation=(0, pi/2, 0))
+            plane_x1 = context.object
+            plane_x1.name = "Plane X1"
+            plane_x1.dimensions = ob.dimensions.zyx
+            context.object.data.materials.append(mat)
+
+            planes.append(plane_x0)
+            planes.append(plane_x1)
+
+            plane_x0.lock_location = plane_x1.lock_location = (False, True, True)
+            plane_x0.lock_rotation = plane_x1.lock_rotation = (True, False, False)
+
+        # Planes Y
+        if self.y_planes:
+            bpy.ops.mesh.primitive_plane_add(
+                radius=1000,
+                location=(bb_origin.x, bb_origin.y - bb_size.y/2, bb_origin.z),
+                rotation=(pi/2, 0, 0))
+            plane_y0 = context.object
+            plane_y0.name = "Plane Y0"
+            plane_y0.dimensions = ob.dimensions.xzy
+
+            mat = bpy.data.materials.new(name="Y Planes")
+            context.object.data.materials.append(mat)
+            context.object.active_material.diffuse_color = (0, 1, .5)
+            context.object.active_material.use_transparency = True
+            context.object.active_material.alpha = alpha
+            context.object.active_material.use_object_color = True
+
+            bpy.ops.mesh.primitive_plane_add(
+                radius=1000,
+                location=(bb_origin.x, bb_origin.y + bb_size.y/2, bb_origin.z),
+                rotation=(-pi/2, 0,  0))
+            plane_y1 = context.object
+            plane_y1.name = "Plane Y1"
+            plane_y1.dimensions = ob.dimensions.xzy
+            #plane_y1.hide_select = True
+            plane_y1.parent = ob
+            context.object.data.materials.append(mat)
+
+            planes.append(plane_y0)
+            planes.append(plane_y1)
+
+            plane_y0.lock_location = plane_y1.lock_location = (True, False, True)
+            plane_y0.lock_rotation = plane_y1.lock_rotation = (False, True, False)
+
+        # Planes Z
+        if self.z_planes:
+            bpy.ops.mesh.primitive_plane_add(
+                radius=1000,
+                location=(bb_origin.x, bb_origin.y, bb_origin.z - bb_size.z/2),
+                rotation=(0, pi, 0))
+            plane_z0 = context.object
+            plane_z0.name = "Plane Z0"
+            plane_z0.dimensions = ob.dimensions.xyz
+
+            mat = bpy.data.materials.new(name="Z Planes")
+            context.object.data.materials.append(mat)
+            context.object.active_material.diffuse_color = (0, .1, 1)
+            context.object.active_material.use_transparency = True
+            context.object.active_material.alpha = alpha
+            context.object.active_material.use_object_color = True
+
+            bpy.ops.mesh.primitive_plane_add(
+                radius=1000,
+                location=(bb_origin.x, bb_origin.y, bb_origin.z + bb_size.z/2),
+                rotation=(0, 0, 0))
+            plane_z1 = context.object
+            plane_z1.name = "Plane Z1"
+            plane_z1.dimensions = ob.dimensions.xyz
+            context.object.data.materials.append(mat)
+
+            planes.append(plane_z0)
+            planes.append(plane_z1)
+
+            plane_z0.lock_location = plane_z1.lock_location = (True, True, False)
+            plane_z0.lock_rotation = plane_z1.lock_rotation = (False, False, True)
+
+        for plane in planes:
+            #c.draw_type = 'BOUNDS'
+            plane.parent = ob
+            plane.show_transparent = True
+            plane.show_wire = True
+            plane.show_name = True
+            plane.waspmed_prop.status = 4
+            plane.waspmed_prop.plane_cap = "Z" not in plane.name
+            plane.select = False
+        context.scene.objects.active = ob
+        ob.select = True
+        return {'FINISHED'}
+
+class define_crop_planes_old(bpy.types.Operator):
+    bl_idname = "object.define_crop_planes_old"
     bl_label = "Define Crop Planes"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
@@ -292,19 +477,26 @@ class waspmed_crop_panel(bpy.types.Panel):
         layout = self.layout
         col = layout.column(align=True)
         col.operator("object.define_crop_planes", text="Setting Crop Planes", icon="SETTINGS")
+        ob = context.object
+        if ob.parent != None: ob = ob.parent
+        planes = [plane for plane in ob.children if "Plane" in plane.name]
+        col.separator()
+
+        separator = True
+        for p in planes:
+            if "0" in p.name or separator:
+                col.separator()
+            separator = "1" in p.name
+            row = col.row(align=True)
+            icon = "RADIOBUT_ON" if p == context.object else "RADIOBUT_OFF"
+            icon = "SPACE2" if p == context.object else "SPACE3"
+            row.label(text=p.name, icon=icon)
+            #row.prop(p, "select", text="")
+            row.prop(p.waspmed_prop, "plane_cap", text="", icon="SNAP_FACE")
+            row.prop(p, "hide", text="")
+            row.prop(p, "hide_select", text="")
         col.separator()
         try:
-            row = col.row(align=True)
-            row.prop(bpy.data.objects['Plane X0'].constraints['Limit Location'], "min_x", text="Left")
-            row.prop(bpy.data.objects['Plane X1'].constraints['Limit Location'], "max_x", text="Right")
-            col.separator()
-            #row = col.row(align=True)
-            #row.prop(bpy.data.objects['Plane Y0'].constraints['Limit Location'], "min_y", text="Y0")
-            #row.prop(bpy.data.objects['Plane Y1'].constraints['Limit Location'], "max_y", text="Y1")
-            row = col.row(align=True)
-            row.prop(bpy.data.objects['Plane Z0'].constraints['Limit Location'], "min_z", text="Bottom")
-            row.prop(bpy.data.objects['Plane Z1'].constraints['Limit Location'], "max_z", text="Top")
-            col.separator()
             col.operator("object.crop_geometry", text="Crop Geometry", icon="MOD_DECIM")
         except:
             pass
