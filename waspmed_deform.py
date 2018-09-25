@@ -288,22 +288,22 @@ class waspmed_deform_panel(bpy.types.Panel):
         row.operator("ed.undo", icon='LOOP_BACK')
         row.operator("ed.redo", icon='LOOP_FORWARDS')
 
+classes = (
+    waspmed_deform_panel,
+    add_lattice_to_object,
+    edit_lattice,
+    rotate_sections
+)
 
 def register():
-    bpy.utils.register_class(waspmed_deform_panel)
-    bpy.utils.register_class(add_lattice_to_object)
-    bpy.utils.register_class(edit_lattice)
-    bpy.utils.register_class(rotate_sections)
-    #bpy.utils.register_class(object.back)
-
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)
 
 def unregister():
-    bpy.utils.unregister_class(waspmed_deform_panel)
-    bpy.utils.unregister_class(add_lattice_to_object)
-    bpy.utils.unregister_class(edit_lattice)
-    bpy.utils.unregister_class(rotate_sections)
-    #bpy.utils.unregister_class(back)
-
+    from bpy.utils import unregister_class
+    for cls in reversed(classes):
+        unregister_class(cls)
 
 if __name__ == "__main__":
     register()
