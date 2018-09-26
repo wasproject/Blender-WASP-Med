@@ -360,9 +360,11 @@ class waspmed_generate_panel(View3DPaintPanel, bpy.types.Panel):
     #bl_options = {}
     #bl_context = "objectmode"
 
-    #@classmethod
-    #def poll(cls, context):
-    #    return context.mode in {'OBJECT', 'EDIT_MESH'}
+    '''
+    @classmethod
+    def poll(cls, context):
+        return context.mode in {'OBJECT', 'EDIT_MESH'}
+    '''
 
     @classmethod
     def poll(cls, context):
@@ -400,21 +402,23 @@ class waspmed_generate_panel(View3DPaintPanel, bpy.types.Panel):
         row.operator("ed.undo", icon='LOOP_BACK')
         row.operator("ed.redo", icon='LOOP_FORWARDS')
 
-def register():
-    bpy.utils.register_class(waspmed_generate_panel)
-    bpy.utils.register_class(weight_thickness)
-    bpy.utils.register_class(set_weight_paint)
-    bpy.utils.register_class(smooth_weight)
-    #bpy.utils.register_class(object.back)
+classes = (
+    waspmed_generate_panel,
+    weight_thickness,
+    set_weight_paint,
+    smooth_weight
+)
 
+def register():
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)
 
 def unregister():
-    bpy.utils.unregister_class(waspmed_generate_panel)
-    bpy.utils.unregister_class(weight_thickness)
-    bpy.utils.unregister_class(set_weight_paint)
-    bpy.utils.unregister_class(smooth_weight)
-    #bpy.utils.unregister_class(back)
-
+    from bpy.utils import unregister_class
+    for cls in reversed(classes):
+        try: unregister_class(cls)
+        except: pass
 
 if __name__ == "__main__":
     register()

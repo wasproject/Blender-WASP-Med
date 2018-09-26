@@ -121,6 +121,7 @@ def update_thickness(self, context):
             ob.modifiers["Mask"].show_render = False
         mod.thickness = max_t
         mod.thickness_vertex_group = min_t / max_t
+        mod.use_even_offset = True
     except:
         pass
 
@@ -225,7 +226,15 @@ class waspmed_next(bpy.types.Operator):
 
     def execute(self, context):
         old_ob = context.object
+
         bpy.ops.object.mode_set(mode='OBJECT')
+
+        # if crop planes are selected
+        if old_ob.waspmed_prop.status == 4 and old_ob.parent != None:
+            old_ob.hide = True
+            old_ob.select = False
+            old_ob = old_ob.parent
+            context.scene.objects.active = old_ob
 
         if old_ob.type != 'MESH' and old_ob.parent != None:
             old_ob.hide = True
@@ -568,10 +577,11 @@ class waspmed_progress_panel(View3DPaintPanel, bpy.types.Panel):
         col.separator()
         row = col.row(align=True)
         row.operator("object.waspmed_back", icon='BACK')#, text="")
-        if context.object.waspmed_prop.status == 6:
-            row.operator("export_mesh.stl", icon='EXPORT')#, text="")
-        else:
-            row.operator("object.waspmed_next", icon='FORWARD')#, text="")
+        if context.object != None:
+            if context.object.waspmed_prop.status == 6:
+                row.operator("export_mesh.stl", icon='EXPORT')#, text="")
+            else:
+                row.operator("object.waspmed_next", icon='FORWARD')#, text="")
 
 class waspmed_scan_panel(View3DPaintPanel, bpy.types.Panel):
 #class waspmed_scan_panel(, bpy.types.View3DPaintPanel):
@@ -661,7 +671,8 @@ def register():
 
 
 def unregister():
-    bpy.utils.unregister_class(waspmed_prop)
+    bpy.utils.unregister_class(waspmed_object_prop)
+    bpy.utils.unregister_class(waspmed_scene_prop)
     bpy.utils.unregister_class(waspmed_scan_panel)
     bpy.utils.unregister_class(waspmed_progress_panel)
     bpy.utils.unregister_class(wasp_setup)
