@@ -216,6 +216,10 @@ class waspmed_next(bpy.types.Operator):
     def poll(cls, context):
         try:
             ob = context.object
+            if ob.waspmed_prop.status == 5 and len(ob.vertex_groups) == 0:
+                return False
+            if not bpy.context.object.is_visible(bpy.context.scene):
+                return False
             if ob.type != 'MESH' and ob.parent != None:
                 ob = ob.parent
             if ob.type == 'MESH' and ob.waspmed_prop.status < len(status_list)-1:
@@ -325,6 +329,8 @@ class waspmed_back(bpy.types.Operator):
     def poll(cls, context):
         try:
             visible = context.object.waspmed_prop.status > 0
+            if not bpy.context.object.is_visible(bpy.context.scene):
+                return False
             if not visible:
                 try: visible = context.object.parent.waspmed_prop.status > 0
                 except: pass
@@ -561,7 +567,9 @@ class waspmed_progress_panel(View3DPaintPanel, bpy.types.Panel):
     '''
     @classmethod
     def poll(cls, context):
-        try: return context.object.waspmed_prop.status == 0
+        try:
+            return bpy.context.object.is_visible(bpy.context.scene)
+            #return context.object.waspmed_prop.status == 0
         except: return False
     '''
     def draw(self, context):

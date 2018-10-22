@@ -470,7 +470,7 @@ class waspmed_crop_panel(bpy.types.Panel):
             ob = context.object
             status = ob.waspmed_prop.status
             is_mesh = ob.type == 'MESH'
-            return status == 4 and is_mesh and not context.object.hide
+            return status == 4 and is_mesh # and not context.object.hide
         except: return False
 
     def draw(self, context):
