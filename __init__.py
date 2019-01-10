@@ -51,8 +51,8 @@ import bpy
 bl_info = {
 	"name": "Waspmed",
 	"author": "WASP",
-	"version": (0, 0, 1),
-	"blender": (2, 7, 9),
+	"version": (0, 0, 2),
+	"blender": (2, 80, 0),
 	"location": "",
 	"description": "Tools for medical devices",
 	"warning": "",
@@ -60,24 +60,48 @@ bl_info = {
 	"tracker_url": "",
 	"category": "Mesh"}
 
+classes = (
+    waspmed_scan.waspmed_object_prop,
+    waspmed_scan.waspmed_scene_prop,
+    waspmed_scan.waspmed_progress_panel,
+    waspmed_scan.waspmed_scan_panel,
+    waspmed_scan.wasp_setup,
+    waspmed_scan.auto_origin,
+    waspmed_scan.rebuild_mesh,
+    waspmed_scan.cap_holes,
+    waspmed_scan.waspmed_next,
+    waspmed_scan.waspmed_back,
+    waspmed_scan.check_differences,
+    waspmed_generate.waspmed_generate_panel,
+    waspmed_generate.weight_thickness,
+    waspmed_generate.set_weight_paint,
+    waspmed_generate.smooth_weight,
+    waspmed_print.waspmed_print_panel,
+    waspmed_sculpt.waspmed_sculpt_panel,
+    waspmed_sculpt.set_sculpt,
+    waspmed_deform.waspmed_deform_panel,
+    waspmed_deform.add_lattice_to_object,
+    waspmed_deform.edit_lattice,
+    waspmed_deform.rotate_sections,
+    waspmed_crop.waspmed_crop_panel,
+    waspmed_crop.define_crop_planes,
+    waspmed_crop.crop_geometry
+    )
+
 
 def register():
-    bpy.utils.register_module(__name__)
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)
     bpy.types.Object.waspmed_prop = bpy.props.PointerProperty(
         type=waspmed_scan.waspmed_object_prop)
     bpy.types.Scene.waspmed_prop = bpy.props.PointerProperty(
         type=waspmed_scan.waspmed_scene_prop)
 
-
 def unregister():
-    waspmed_scan.unregister()
-    waspmed_sculpt.unregister()
-    waspmed_generate.unregister()
-    waspmed_deform.unregister()
-    waspmed_crop.unregister()
-    waspmed_generate.unregister()
-    waspmed_print.unregister()
-
+    from bpy.utils import unregister_class
+    for cls in reversed(classes):
+        unregister_class(cls)
 
 if __name__ == "__main__":
     register()
