@@ -30,43 +30,43 @@ class add_lattice_to_object(bpy.types.Operator):
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
-    locx = bpy.props.FloatProperty(
+    locx : bpy.props.FloatProperty(
         name="Location X", default=0.00, soft_min=-180, soft_max=180,
         description="Location X")
-    locy = bpy.props.FloatProperty(
+    locy : bpy.props.FloatProperty(
         name="Location Y", default=0.00, soft_min=-180, soft_max=180,
         description="Location Y")
-    locz = bpy.props.FloatProperty(
+    locz : bpy.props.FloatProperty(
         name="Location Z", default=0.00, soft_min=-180, soft_max=180,
         description="Location Z")
 
-    rotx = bpy.props.FloatProperty(
+    rotx : bpy.props.FloatProperty(
         name="Rotation X", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation X")
-    roty = bpy.props.FloatProperty(
+    roty : bpy.props.FloatProperty(
         name="Rotation Y", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation Y")
-    rotz = bpy.props.FloatProperty(
+    rotz : bpy.props.FloatProperty(
         name="Rotation Z", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation Z")
 
-    dimx = bpy.props.IntProperty(
+    dimx : bpy.props.IntProperty(
         name="Size X", default=400, soft_min=100, soft_max=1000,
         description="Size X")
-    dimy = bpy.props.IntProperty(
+    dimy : bpy.props.IntProperty(
         name="Size Y", default=300, soft_min=100, soft_max=1000,
         description="Size Z")
-    dimz = bpy.props.IntProperty(
+    dimz : bpy.props.IntProperty(
         name="Size Z", default=700, soft_min=100, soft_max=1000,
         description="Size Z")
 
-    subu = bpy.props.IntProperty(
+    subu : bpy.props.IntProperty(
         name="U", default=3, soft_min=1, soft_max=10,
         description="Subdivisions in U")
-    subv = bpy.props.IntProperty(
+    subv : bpy.props.IntProperty(
         name="V", default=3, soft_min=1, soft_max=10,
         description="Subdivisions in V")
-    subw = bpy.props.IntProperty(
+    subw : bpy.props.IntProperty(
         name="W", default=5, soft_min=1, soft_max=10,
         description="Subdivisions in W")
 
@@ -156,10 +156,10 @@ class edit_lattice(bpy.types.Operator):
         if ob.type == 'MESH':
             for child in ob.children:
                 if child.type == 'LATTICE':
-                    bpy.context.scene.objects.active = child
-                    child.hide = False
-                    child.select = True
-                    ob.select = False
+                    bpy.context.view_layer.objects.active = child
+                    child.hide_viewport = False
+                    child.select_set(True)
+                    ob.select_set(False)
                     break
         bpy.ops.object.mode_set(mode='EDIT')
         return {'FINISHED'}
@@ -171,34 +171,34 @@ class rotate_sections(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
 
-    r0 = bpy.props.FloatProperty(
+    r0 : bpy.props.FloatProperty(
         name="Section 1", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 1")
-    r1 = bpy.props.FloatProperty(
+    r1 : bpy.props.FloatProperty(
         name="Section 2", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 2")
-    r2 = bpy.props.FloatProperty(
+    r2 : bpy.props.FloatProperty(
         name="Section 3", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 3")
-    r3 = bpy.props.FloatProperty(
+    r3 : bpy.props.FloatProperty(
         name="Section 4", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 4")
-    r4 = bpy.props.FloatProperty(
+    r4 : bpy.props.FloatProperty(
         name="Section 5", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 5")
-    r5 = bpy.props.FloatProperty(
+    r5 : bpy.props.FloatProperty(
         name="Section 6", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 6")
-    r6 = bpy.props.FloatProperty(
+    r6 : bpy.props.FloatProperty(
         name="Section 7", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 7")
-    r7 = bpy.props.FloatProperty(
+    r7 : bpy.props.FloatProperty(
         name="Section 8", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 8")
-    r8 = bpy.props.FloatProperty(
+    r8 : bpy.props.FloatProperty(
         name="Section 9", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 9")
-    r9 = bpy.props.FloatProperty(
+    r9 : bpy.props.FloatProperty(
         name="Section 10", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation of section 10")
 
@@ -247,7 +247,7 @@ class waspmed_deform_panel(bpy.types.Panel):
     bl_label = "Deform"
     bl_category = "Waspmed"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
+    bl_region_type = "UI"
     #bl_options = {}
     #bl_context = "objectmode"
 
@@ -262,7 +262,7 @@ class waspmed_deform_panel(bpy.types.Panel):
             status = ob.waspmed_prop.status
             is_lattice = ob.type == 'LATTICE' and ob.parent != None
             is_mesh = ob.type == 'MESH'
-            return ((status == 3 and is_mesh) or is_lattice) and not context.object.hide
+            return ((status == 3 and is_mesh) or is_lattice) and not context.object.hide_viewport
         except: return False
 
     def draw(self, context):
@@ -280,14 +280,15 @@ class waspmed_deform_panel(bpy.types.Panel):
 
         box = layout.box()
         col = box.column(align=True)
-        col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
-        col.separator()
-        col.operator("screen.region_quadview", text="Toggle Quad View", icon='SPLITSCREEN')
+        #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
+        #col.separator()
+        col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()
         row = col.row(align=True)
         row.operator("ed.undo", icon='LOOP_BACK')
         row.operator("ed.redo", icon='LOOP_FORWARDS')
 
+'''
 classes = (
     waspmed_deform_panel,
     add_lattice_to_object,
@@ -307,3 +308,4 @@ def unregister():
 
 if __name__ == "__main__":
     register()
+'''

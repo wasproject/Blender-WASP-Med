@@ -29,6 +29,14 @@ status_list = ["scan", "remesh", "sculpt", "deform", "crop", "generate", "print"
 #    ob.tissue_tessellate.generator = operator.generator
 #    return ob
 
+def xray_shading(bool_xray):
+    my_areas = bpy.context.screen.areas
+    #my_shading = 'WIREFRAME'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
+    for area in my_areas:
+        for space in area.spaces:
+            if space.type == 'VIEW_3D':
+                space.shading.show_xray = bool_xray
+
 def update_smooth(self, context):
     ob = context.object
     try:
@@ -51,11 +59,11 @@ def update_trim_bottom(self, context):
         margin = 10
         ob = context.object
         if ob.waspmed_prop.status < 6: return
-        min_x, min_y, min_z = max_x, max_y, max_z = ob.matrix_world * ob.data.vertices[0].co
+        min_x, min_y, min_z = max_x, max_y, max_z = ob.matrix_world @ ob.data.vertices[0].co
         init_z = True
         for v in ob.data.vertices:
             # store vertex world coordinates
-            world_co = ob.matrix_world * v.co
+            world_co = ob.matrix_world @ v.co
             min_x = min(min_x, world_co[0])-margin
             min_y = min(min_y, world_co[1])-margin
             max_x = max(max_x, world_co[0])+margin
@@ -80,16 +88,17 @@ def update_trim_bottom(self, context):
             box.location = loc
         except:
             bpy.ops.mesh.primitive_cube_add(location=loc,
-                radius = max(max_x - min_x, max_y - min_y)/2 + 2)
+                size = max(max_x - min_x, max_y - min_y)/100 + 2)
             box = bpy.context.object
         box.dimensions[2] = max_z - min_z + ob.waspmed_prop.trim_bottom*2
         box.name = "Crop_Box"
-        bpy.context.scene.objects.active = ob
-        ob.select = True
-        box.draw_type = 'WIRE'
+        bpy.context.view_layer.objects.active = ob
+        ob.select_set(True)
+        box.display_type = 'WIRE'
         box.parent = ob
         box.hide_select = True
-        box.select = False
+        box.hide_viewport = True
+        box.select_set(False)
         try:
             mod = ob.modifiers["Crop"]
         except:
@@ -97,7 +106,7 @@ def update_trim_bottom(self, context):
             mod = ob.modifiers["Crop"]
         mod.object = box
         mod.operation = 'INTERSECT'
-        mod.solver = 'CARVE'
+        #mod.solver = 'CARVE'
         if ob.waspmed_prop.bool_trim_bottom:
             mod.show_viewport = False
             context.scene.update()
@@ -132,46 +141,46 @@ def update_crop(self, context):
         pass
 
 class waspmed_object_prop(bpy.types.PropertyGroup):
-    patientID = bpy.props.StringProperty()
-    status = bpy.props.IntProperty(default=0)
-    zscale = bpy.props.FloatProperty(default=1)
-    merge = bpy.props.BoolProperty()
-    min_thickness = bpy.props.FloatProperty(
+    patientID : bpy.props.StringProperty()
+    status : bpy.props.IntProperty(default=0)
+    zscale : bpy.props.FloatProperty(default=1)
+    merge : bpy.props.BoolProperty()
+    min_thickness : bpy.props.FloatProperty(
         name="Min", default=3, min=0.0, soft_max=10,
         description="Max Thickness",
         unit = 'LENGTH',
         update = update_thickness
         )
-    max_thickness = bpy.props.FloatProperty(
+    max_thickness : bpy.props.FloatProperty(
         name="Max", default=6, min=0.01, soft_max=10,
         description="Max Thickness",
         unit = 'LENGTH',
         update = update_thickness
         )
-    bool_trim_bottom = bpy.props.BoolProperty(
+    bool_trim_bottom : bpy.props.BoolProperty(
         name = "Trim",
         description = "Create a flat bottom",
         default = False,
         update = update_trim_bottom
         )
-    trim_bottom = bpy.props.FloatProperty(
+    trim_bottom : bpy.props.FloatProperty(
         name="Distance", default=5, min=0.01, soft_max=50,
         description="Trim distance for the bottom",
         unit = 'LENGTH',
         update = update_trim_bottom
         )
-    bool_smooth = bpy.props.BoolProperty(
+    bool_smooth : bpy.props.BoolProperty(
         name = "Smooth",
         description = "Smooth body",
         default = False,
         update = update_smooth
         )
-    smooth_iterations = bpy.props.IntProperty(
+    smooth_iterations : bpy.props.IntProperty(
         name="Iterations", default=100, min=0, soft_max=1000,
         description="Corrective Smooth Iterations",
         update = update_smooth
         )
-    plane_cap = bpy.props.BoolProperty(
+    plane_cap : bpy.props.BoolProperty(
         name="Cap", default=False,
         description="Fill the section area",
         update = update_crop
@@ -181,7 +190,7 @@ class waspmed_object_prop(bpy.types.PropertyGroup):
 
 
 class waspmed_scene_prop(bpy.types.PropertyGroup):
-    do_setup = bpy.props.BoolProperty(default=True)
+    do_setup : bpy.props.BoolProperty(default=True)
 
 class cap_holes(bpy.types.Operator):
     bl_idname = "mesh.cap_holes"
@@ -218,7 +227,7 @@ class waspmed_next(bpy.types.Operator):
             ob = context.object
             if ob.waspmed_prop.status == 5 and len(ob.vertex_groups) == 0:
                 return False
-            if not bpy.context.object.is_visible(bpy.context.scene):
+            if ob.hide_viewport: #not bpy.context.object.is_visible(bpy.context.scene):
                 return False
             if ob.type != 'MESH' and ob.parent != None:
                 ob = ob.parent
@@ -235,18 +244,18 @@ class waspmed_next(bpy.types.Operator):
 
         # if crop planes are selected
         if old_ob.waspmed_prop.status == 4 and old_ob.parent != None:
-            old_ob.hide = True
-            old_ob.select = False
+            old_ob.hide_viewport = True
+            old_ob.select_set(False)
             old_ob = old_ob.parent
-            context.scene.objects.active = old_ob
+            context.view_layer.objects.active = old_ob
 
         if old_ob.type != 'MESH' and old_ob.parent != None:
-            old_ob.hide = True
-            old_ob.select = False
+            old_ob.hide_viewport = True
+            old_ob.select_set(False)
             old_ob = old_ob.parent
-            context.scene.objects.active = old_ob
+            context.view_layer.objects.active = old_ob
 
-        old_ob.hide = False
+        old_ob.hide_viewport = False
         bpy.ops.object.mode_set(mode='OBJECT')
 
         init_object = False
@@ -264,23 +273,30 @@ class waspmed_next(bpy.types.Operator):
                     for child in o.children: bpy.data.objects.remove(child)
                     bpy.data.objects.remove(o)
                 else:
-                    for child in o.children: child.hide = False
+                    for child in o.children: child.hide_viewport = False
                     o.data = old_ob.data
-                    context.scene.objects.active = o
-                    o.select = True
-                    o.hide = False
+                    context.view_layer.objects.active = o
+                    o.select_set(True)
+                    o.hide_viewport = False
                     ob = o
+
+        # set X-ray for cropping planes
+        if status+1 == 4:
+            xray_shading(True)
+        if status+1 == 5:
+            xray_shading(False)
 
         # generate new next status
         new_ob = ob
         if ob == None:
             ob = context.object
-            ob.select = True
-            context.scene.objects.active = ob
+            ob.select_set(True)
+            context.view_layer.objects.active = ob
             old_status = status_list[status]
             next_status = status_list[status+1]
             if status == 0 and init_object:
                 ob.name = "00_" + patientID + "_" + old_status
+                bpy.context.collection.name = patientID
             if status == 5:
                 bpy.ops.object.weight_thickness()
                 new_ob = context.object
@@ -297,12 +313,15 @@ class waspmed_next(bpy.types.Operator):
             else:
                 bpy.ops.object.duplicate_move()
             bpy.ops.object.mode_set(mode='OBJECT')
-            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            try:
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            except:
+                pass
             new_ob = context.object
             new_ob.waspmed_prop.status = status + 1
             new_ob.name = str(status+1).zfill(2) + "_" + patientID + "_" + next_status
         for o in bpy.data.objects:
-            if o != new_ob and o not in new_ob.children: o.hide = True
+            if o != new_ob and o not in new_ob.children: o.hide_viewport = True
 
         # change mode
         if new_ob.waspmed_prop.status == 2:
@@ -329,7 +348,7 @@ class waspmed_back(bpy.types.Operator):
     def poll(cls, context):
         try:
             visible = context.object.waspmed_prop.status > 0
-            if not bpy.context.object.is_visible(bpy.context.scene):
+            if bpy.context.object.hide_viewport:
                 return False
             if not visible:
                 try: visible = context.object.parent.waspmed_prop.status > 0
@@ -342,17 +361,24 @@ class waspmed_back(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='OBJECT')
         if ob.type == 'LATTICE':
             try:
-                ob.hide = True
+                ob.hide_viewport = True
                 ob = context.object.parent
             except:
                 return {'FINISHED'}
         patientID = ob.waspmed_prop.patientID
         status = ob.waspmed_prop.status - 1
+
+        # set X-ray for cropping planes
+        if status == 4:
+            xray_shading(True)
+        if status == 3:
+            xray_shading(False)
+
         for o in bpy.data.objects:
             if o.waspmed_prop.patientID == patientID and status == o.waspmed_prop.status:
-                bpy.context.scene.objects.active = o
-                o.select = True
-                o.hide = False
+                bpy.context.view_layer.objects.active = o
+                o.select_set(True)
+                o.hide_viewport = False
                 ob = o
                 if o.waspmed_prop.status == 2:
                     bpy.ops.object.mode_set(mode='SCULPT')
@@ -360,9 +386,11 @@ class waspmed_back(bpy.types.Operator):
                     bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
                 else: bpy.ops.object.mode_set(mode='OBJECT')
             else:
-                o.select = False
-                o.hide = True
-            for child in ob.children: child.hide = False
+                try:
+                    o.select_set(False)
+                    o.hide_viewport = True
+                except: pass
+            for child in ob.children: child.hide_viewport = False
 
         return {'FINISHED'}
 
@@ -370,8 +398,8 @@ class waspmed_back(bpy.types.Operator):
         layout = self.layout
         col = layout.column(align=True)
         if context.object.waspmed_prop.status != 3:
-            col.label("This will delete changes to the model.", icon="ERROR")
-            col.label("Do you want to continue?")
+            col.label(text="This will delete changes to the model.", icon="ERROR")
+            col.label(text="Do you want to continue?")
 
     def invoke(self, context, event):
         if context.object.waspmed_prop.status == 3:
@@ -385,13 +413,13 @@ class rebuild_mesh(bpy.types.Operator):
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
-    detail = bpy.props.IntProperty(
+    detail : bpy.props.IntProperty(
         name="Detail", default=7, soft_min=3, soft_max=10,
         description="Octree Depth")
 
     @classmethod
     def poll(cls, context):
-        try: return not context.object.hide
+        try: return not context.object.hide_viewport
         except: return False
 
     def execute(self, context):
@@ -403,9 +431,9 @@ class rebuild_mesh(bpy.types.Operator):
             for o in bpy.data.objects:
                 if o.waspmed_prop.patientID == patientID:
                     if o.waspmed_prop.status == 0:
-                        o.hide = False
-                        o.select = True
-                        context.scene.objects.active = o
+                        o.hide_viewport = False
+                        o.select_set(True)
+                        context.view_layer.objects.active = o
         '''
         bpy.ops.object.waspmed_back()
         bpy.ops.object.waspmed_next()
@@ -423,19 +451,19 @@ class auto_origin(bpy.types.Operator):
     bl_description = ("Center the 3D model automatically")
     bl_options = {'REGISTER', 'UNDO'}
 
-    rotx = bpy.props.FloatProperty(
+    rotx : bpy.props.FloatProperty(
         name="Rotation X", default=90, soft_min=-180, soft_max=180,
         description="Rotation X")
-    roty = bpy.props.FloatProperty(
+    roty : bpy.props.FloatProperty(
         name="Rotation Y", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation Y")
-    rotz = bpy.props.FloatProperty(
+    rotz : bpy.props.FloatProperty(
         name="Rotation Z", default=-45.00, soft_min=-180, soft_max=180,
         description="Rotation Z")
 
     @classmethod
     def poll(cls, context):
-        try: return not context.object.hide
+        try: return not context.object.hide_viewport
         except: return False
 
     def execute(self, context):
@@ -456,15 +484,14 @@ def delete_all():
         bpy.data.objects.remove(o)
 
 def set_mm():
-    for s in bpy.data.screens:
-        for a in s.areas:
-            if a.type == 'OUTLINER':
-                a.spaces[0].display_mode = 'VISIBLE_LAYERS'
-    bpy.context.scene.unit_settings.system = 'METRIC'
+    #for s in bpy.data.screens:
+    #    for a in s.areas:
+    #        if a.type == 'OUTLINER':
+    #            a.spaces[0].display_mode = 'VISIBLE_LAYERS'
+    bpy.context.scene.unit_settings.length_unit = 'MILLIMETERS'
     bpy.context.scene.unit_settings.scale_length = 0.001
-    bpy.context.space_data.lens = 50
-    bpy.context.space_data.clip_start = 1
-    bpy.context.space_data.clip_end = 1e+006
+    bpy.context.space_data.overlay.grid_scale = 0.001
+
 
 def set_clipping_planes():
     bpy.context.space_data.lens = 50
@@ -477,9 +504,9 @@ class check_differences(bpy.types.Operator):
     bl_description = ("Check the differences with the original model")
     bl_options = {'REGISTER', 'UNDO'}
 
-    max_dist = bpy.props.FloatProperty(
-        name="Max Distance (mm)", default=5, soft_min=0, soft_max=50,
-        description="Max Distance")
+    max_dist : bpy.props.FloatProperty(
+        name="Max Distance", default=5, soft_min=0, soft_max=50,
+        description="Max Distance", unit='LENGTH')
 
     @classmethod
     def poll(cls, context):
@@ -546,11 +573,11 @@ from bl_ui.properties_paint_common import (
 
 class View3DPanel:
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
 
 class View3DPaintPanel(UnifiedPaintPanel):
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
 
 ### END Sculpt Tools ###
 
@@ -560,7 +587,7 @@ class waspmed_progress_panel(View3DPaintPanel, bpy.types.Panel):
     bl_label = "Waspmed Progress"
     bl_category = "Waspmed"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
+    bl_region_type = "UI"
     #bl_options = {}
     #bl_context = "objectmode"
 
@@ -576,27 +603,32 @@ class waspmed_progress_panel(View3DPaintPanel, bpy.types.Panel):
         layout = self.layout
         col = layout.column(align=True)
         if context.scene.waspmed_prop.do_setup:
-            col.operator("scene.wasp_setup", icon="NEW", text="Start")
+            col.operator("scene.wasp_setup", icon="FILE_NEW", text="Start")
             col.separator()
-        try: col.label(text="" + context.object.waspmed_prop.patientID,
-            icon="ARMATURE_DATA")
-        except: col.label(text="Import new Patient",
-            icon="INFO")
-        col.separator()
-        row = col.row(align=True)
-        row.operator("object.waspmed_back", icon='BACK')#, text="")
-        if context.object != None:
-            if context.object.waspmed_prop.status == 6:
-                row.operator("export_mesh.stl", icon='EXPORT')#, text="")
-            else:
-                row.operator("object.waspmed_next", icon='FORWARD')#, text="")
+        else:
+            try:
+                if context.object.parent:
+                    patient_name = context.object.parent.waspmed_prop.patientID
+                else:
+                    patient_name = context.object.waspmed_prop.patientID
+                col.label(text=patient_name, icon="OUTLINER_OB_ARMATURE")
+            except: col.label(text="Import new Patient",
+                icon="INFO")
+            if context.object != None:
+                col.separator()
+                row = col.row(align=True)
+                row.operator("object.waspmed_back", icon='BACK')#, text="")
+                if context.object.waspmed_prop.status == 6:
+                    row.operator("export_mesh.stl", icon='EXPORT')#, text="")
+                else:
+                    row.operator("object.waspmed_next", icon='FORWARD')#, text="")
 
 class waspmed_scan_panel(View3DPaintPanel, bpy.types.Panel):
 #class waspmed_scan_panel(, bpy.types.View3DPaintPanel):
     bl_label = "3D Scan"
     bl_category = "Waspmed"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
+    bl_region_type = "UI"
     #bl_options = {}
     #bl_context = "objectmode"
 
@@ -625,7 +657,7 @@ class waspmed_scan_panel(View3DPaintPanel, bpy.types.Panel):
             row.operator("import_scene.obj", text="OBJ")
             row.operator("import_mesh.stl", text="STL")
             col.separator()
-            col.operator("object.auto_origin", icon='BBOX')
+            col.operator("object.auto_origin", icon='SHADING_BBOX')
             col.separator()
         #col.label(text="Fix model", icon='ZOOM_SELECTED')
         #col.operator("mesh.cap_holes", text="Cap Holes")
@@ -648,8 +680,8 @@ class waspmed_scan_panel(View3DPaintPanel, bpy.types.Panel):
         box = layout.box()
         col = box.column(align=True)
         #col.label(text="Utils:")
-        col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
-        col.separator()
+        #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
+        #col.separator()
         if context.mode == 'PAINT_WEIGHT':
             col.operator("object.check_differences",
                             icon="ZOOM_SELECTED",
@@ -659,38 +691,8 @@ class waspmed_scan_panel(View3DPaintPanel, bpy.types.Panel):
                             icon="ZOOM_SELECTED",
                             text="Check Differences On")
         col.separator()
-        col.operator("screen.region_quadview", text="Toggle Quad View", icon='SPLITSCREEN')
+        col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()
         row = col.row(align=True)
         row.operator("ed.undo", icon='LOOP_BACK')
         row.operator("ed.redo", icon='LOOP_FORWARDS')
-
-def register():
-    bpy.utils.register_class(waspmed_prop)
-    bpy.utils.register_class(waspmed_progress_panel)
-    bpy.utils.register_class(waspmed_scan_panel)
-    bpy.utils.register_class(scene.wasp_setup)
-    bpy.utils.register_class(object.auto_origin)
-    bpy.utils.register_class(object.rebuild_mesh)
-    bpy.utils.register_class(mesh.cap_holes)
-    bpy.utils.register_class(object.waspmed_next)
-    bpy.utils.register_class(object.waspmed_back)
-    bpy.utils.register_class(check_differences)
-
-
-def unregister():
-    bpy.utils.unregister_class(waspmed_object_prop)
-    bpy.utils.unregister_class(waspmed_scene_prop)
-    bpy.utils.unregister_class(waspmed_scan_panel)
-    bpy.utils.unregister_class(waspmed_progress_panel)
-    bpy.utils.unregister_class(wasp_setup)
-    bpy.utils.unregister_class(auto_origin)
-    bpy.utils.unregister_class(rebuild_mesh)
-    bpy.utils.unregister_class(cap_holes)
-    bpy.utils.unregister_class(waspmed_next)
-    bpy.utils.unregister_class(waspmed_back)
-    bpy.utils.unregister_class(check_differences)
-
-
-if __name__ == "__main__":
-    register()
