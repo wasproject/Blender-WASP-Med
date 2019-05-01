@@ -23,8 +23,9 @@ import numpy as np
 from math import sqrt, radians
 import random
 
-class smooth_weight(bpy.types.Operator):
-    bl_idname = "object.smooth_weight"
+'''
+class WASPMED_OT_smooth_weight(bpy.types.Operator):
+    #bl_idname = "object.WASPMED_OT_smooth_weight"
     bl_label = "Smooth Weight"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
@@ -47,9 +48,10 @@ class smooth_weight(bpy.types.Operator):
         bpy.ops.object.vertex_group_smooth(factor=self.factor, repeat=self.repeat, expand=self.expand)
         context.object.data.use_paint_mask_vertex = False
         return {'FINISHED'}
+'''
 
-class weight_thickness(bpy.types.Operator):
-    bl_idname = "object.weight_thickness"
+class OBJECT_OT_wm_weight_thickness(bpy.types.Operator):
+    bl_idname = "object.wm_weight_thickness"
     bl_label = "Weight Thickness"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
@@ -300,8 +302,8 @@ class weight_thickness(bpy.types.Operator):
         except: border_mat = bpy.data.materials.new("Border")
         try: corset_mat = bpy.data.materials["Corset"]
         except: corset_mat = bpy.data.materials.new("Corset")
-        corset_mat.diffuse_color = (0.31,0.737,0.792)
-        border_mat.diffuse_color = (0.31*0.6, 0.737*0.6, 0.792*0.6)
+        corset_mat.diffuse_color = (0.31,0.737,0.792,1)
+        border_mat.diffuse_color = (0.31*0.6, 0.737*0.6, 0.792*0.6,1)
         ob.material_slots[0].material = body_mat
         ob.material_slots[1].material = border_mat
         ob.material_slots[2].material = corset_mat
@@ -309,7 +311,8 @@ class weight_thickness(bpy.types.Operator):
             bool_corset = True
             bool_body = True
             for v in p.vertices:
-                w = ob.vertex_groups["Group"].weight(v)
+                #w = ob.vertex_groups["Group"].weight(v)
+                w = ob.vertex_groups.active.weight(v)
                 if w < 1: bool_corset = False
                 if w > 0: bool_body = False
             if bool_corset: p.material_index = 2
@@ -323,7 +326,8 @@ class weight_thickness(bpy.types.Operator):
 
         # Displace Modifier
         ob.modifiers.new(type='VERTEX_WEIGHT_EDIT', name='Profile')
-        bpy.context.object.modifiers["Profile"].vertex_group = "Group"
+        group_name = ob.vertex_groups.active.name
+        bpy.context.object.modifiers["Profile"].vertex_group = group_name
         ob.modifiers.new(type='SOLIDIFY', name='Solidify')
         mod = ob.modifiers["Solidify"]
         mod.thickness = self.max_thickness
@@ -338,13 +342,17 @@ class weight_thickness(bpy.types.Operator):
 
         return {'FINISHED'}
 
-class set_weight_paint(bpy.types.Operator):
-    bl_idname = "object.set_weight_paint"
+class OBJECT_OT_wm_set_weight_paint(bpy.types.Operator):
+    bl_idname = "object.wm_set_weight_paint"
     bl_label = "Weight Paint"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        ob = context.object
+        if ob.parent != None: ob = ob.parent
+        bpy.context.view_layer.objects.active = ob
+        ob.select_set(True)
         bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
         return {'FINISHED'}
 
@@ -366,7 +374,7 @@ class View3DPaintPanel(UnifiedPaintPanel):
 
 ### END Sculpt Tools ###
 
-class waspmed_generate_panel(View3DPaintPanel, bpy.types.Panel):
+class WASPMED_PT_generate(View3DPaintPanel, bpy.types.Panel):
     bl_label = "Generate"
     bl_category = "Waspmed"
     bl_space_type = "VIEW_3D"
@@ -384,6 +392,8 @@ class waspmed_generate_panel(View3DPaintPanel, bpy.types.Panel):
     def poll(cls, context):
         try:
             ob = context.object
+            if ob.parent != None:
+                ob = ob.parent
             status = ob.waspmed_prop.status
             is_mesh = ob.type == 'MESH'
             return status == 5 and is_mesh and not context.object.hide_viewport
@@ -401,15 +411,21 @@ class waspmed_generate_panel(View3DPaintPanel, bpy.types.Panel):
             self.prop_unified_size(col, context, brush, "size", slider=True, text="Radius")
             self.prop_unified_strength(col, context, brush, "strength", text="Strength")
         else:
-            col.operator("object.set_weight_paint", icon="BRUSH_DATA")
+            col.operator("object.wm_set_weight_paint", icon="BRUSH_DATA")
 
         col.separator()
-        col.operator("object.smooth_weight", icon="SMOOTHCURVE")
+
+        #col.operator("object.smooth_weight", icon="SMOOTHCURVE")
+        col.operator("object.vertex_group_smooth", text="Smooth Weight", icon="SMOOTHCURVE")
 
         box = layout.box()
         col = box.column(align=True)
         #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
-        #col.separator()
+        if context.mode == 'OBJECT':
+            col.separator()
+            col.operator("object.wm_add_measure_plane", text="Add Measure Plane", icon='MESH_PLANE')
+            col.operator("object.wm_measure_circumference", text="Measure Circumference", icon='DRIVER_DISTANCE')
+        col.separator()
         col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()
         row = col.row(align=True)
