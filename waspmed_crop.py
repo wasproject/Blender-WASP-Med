@@ -42,7 +42,7 @@ class OBJECT_OT_wm_crop_geometry(bpy.types.Operator):
             id = o.waspmed_prop.patientID
             s = o.waspmed_prop.status
             if patientID == id and s == status-1:
-                ob.data = o.to_mesh(bpy.context.depsgraph, True)
+                ob.data = o.to_mesh().copy()
         bpy.ops.object.mode_set(mode='EDIT')
 
         side = False
@@ -118,7 +118,7 @@ class OBJECT_OT_wm_define_crop_planes(bpy.types.Operator):
             id = o.waspmed_prop.patientID
             s = o.waspmed_prop.status
             if patientID == id and s == status-1:
-                ob.data = o.to_mesh(bpy.context.depsgraph, True)
+                ob.data = o.to_mesh().copy()
 
         bb0 = Vector(ob.bound_box[0])
         bb1 = Vector(ob.bound_box[6])
@@ -298,7 +298,7 @@ class OBJECT_OT_wm_define_crop_planes_old(bpy.types.Operator):
             id = o.waspmed_prop.patientID
             s = o.waspmed_prop.status
             if patientID == id and s == status-1:
-                ob.data = o.to_mesh(bpy.context.depsgraph, True)
+                ob.data = o.to_mesh().copy()
 
         bb0 = Vector(ob.bound_box[0])
         bb1 = Vector(ob.bound_box[6])

@@ -273,7 +273,7 @@ class OBJECT_OT_wm_measure_circumference(bpy.types.Operator):
         for m in ob.modifiers:
             show_modifiers.append(m.show_viewport)
             if m.type != 'BOOLEAN': m.show_viewport = False
-        me = ob.to_mesh(bpy.context.depsgraph, True)
+        me = ob.to_mesh()
         for m, show in zip(ob.modifiers, show_modifiers): m.show_viewport = show
         length = 0
         bm = bmesh.new()
