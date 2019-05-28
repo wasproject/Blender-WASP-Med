@@ -65,13 +65,17 @@ class back(bpy.types.Operator):
 
 
 
-class set_sculpt(bpy.types.Operator):
-    bl_idname = "object.set_sculpt"
+class OBJECT_OT_wm_set_sculpt(bpy.types.Operator):
+    bl_idname = "object.wm_set_sculpt"
     bl_label = "Sculpt"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        ob = context.object
+        if ob.parent != None: ob = ob.parent
+        bpy.context.view_layer.objects.active = ob
+        ob.select_set(True)
         bpy.ops.object.mode_set(mode='SCULPT')
         return {'FINISHED'}
 
@@ -93,7 +97,7 @@ class View3DPaintPanel(UnifiedPaintPanel):
 
 ### END Sculpt Tools ###
 
-class waspmed_sculpt_panel(View3DPaintPanel, bpy.types.Panel):
+class WASPMED_PT_sculpt(View3DPaintPanel, bpy.types.Panel):
 #class waspmed_scan_panel(, bpy.types.View3DPaintPanel):
     bl_label = "Sculpt"
     bl_category = "Waspmed"
@@ -110,6 +114,8 @@ class waspmed_sculpt_panel(View3DPaintPanel, bpy.types.Panel):
     def poll(cls, context):
         try:
             ob = context.object
+            if ob.parent != None:
+                ob = ob.parent
             status = ob.waspmed_prop.status
             is_mesh = ob.type == 'MESH'
             return (status == 2 and is_mesh) and not context.object.hide_viewport
@@ -127,7 +133,7 @@ class waspmed_sculpt_panel(View3DPaintPanel, bpy.types.Panel):
             self.prop_unified_size(col, context, brush, "size", slider=True, text="Radius")
             self.prop_unified_strength(col, context, brush, "strength", text="Strength")
         else:
-            col.operator("object.set_sculpt", icon="SCULPTMODE_HLT")
+            col.operator("object.wm_set_sculpt", icon="SCULPTMODE_HLT")
 
         #col.template_preview(bpy.data.brushes[0], show_buttons=False)
 
@@ -138,13 +144,17 @@ class waspmed_sculpt_panel(View3DPaintPanel, bpy.types.Panel):
         #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
         #col.separator()
         if context.mode == 'PAINT_WEIGHT':
-            col.operator("object.check_differences",
+            col.operator("object.wm_check_differences",
                             icon="ZOOM_SELECTED",
                             text="Check Differences Off")
         else:
-            col.operator("object.check_differences",
+            col.operator("object.wm_check_differences",
                             icon="ZOOM_SELECTED",
                             text="Check Differences On")
+        if context.mode == 'OBJECT':
+            col.separator()
+            col.operator("object.wm_add_measure_plane", text="Add Measure Plane", icon='MESH_PLANE')
+            col.operator("object.wm_measure_circumference", text="Measure Circumference", icon='DRIVER_DISTANCE')
         col.separator()
         col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()

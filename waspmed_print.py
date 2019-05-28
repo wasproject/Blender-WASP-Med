@@ -24,7 +24,7 @@ from math import sqrt, radians
 import random
 
 
-class waspmed_print_panel(bpy.types.Panel):
+class WASPMED_PT_print(bpy.types.Panel):
 #class waspmed_scan_panel(, bpy.types.View3DPaintPanel):
     bl_label = "Print"
     bl_category = "Waspmed"
@@ -41,6 +41,8 @@ class waspmed_print_panel(bpy.types.Panel):
     def poll(cls, context):
         try:
             ob = context.object
+            if ob.parent != None:
+                ob = ob.parent
             status = ob.waspmed_prop.status
             is_mesh = ob.type == 'MESH'
             return status == 6 and is_mesh and not context.object.hide_viewport
@@ -92,7 +94,11 @@ class waspmed_print_panel(bpy.types.Panel):
         col = box.column(align=True)
         #col.label(text="Utils:")
         #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
-        #col.separator()
+        if context.mode == 'OBJECT' and False:
+            col.separator()
+            col.operator("object.add_measure_plane", text="Add Measure Plane", icon='MESH_PLANE')
+            col.operator("object.measure_circumference", text="Measure Circumference", icon='DRIVER_DISTANCE')
+        col.separator()
         col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()
         row = col.row(align=True)

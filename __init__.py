@@ -46,12 +46,12 @@ else:
     from . import waspmed_generate
     from . import waspmed_print
 
-import bpy
+import bpy, bmesh
 
 bl_info = {
 	"name": "Waspmed",
 	"author": "WASP",
-	"version": (0, 0, 2),
+	"version": (0, 0, 4),
 	"blender": (2, 80, 0),
 	"location": "",
 	"description": "Tools for medical devices",
@@ -63,29 +63,32 @@ bl_info = {
 classes = (
     waspmed_scan.waspmed_object_prop,
     waspmed_scan.waspmed_scene_prop,
-    waspmed_scan.waspmed_progress_panel,
-    waspmed_scan.waspmed_scan_panel,
-    waspmed_scan.wasp_setup,
-    waspmed_scan.auto_origin,
-    waspmed_scan.rebuild_mesh,
-    waspmed_scan.cap_holes,
-    waspmed_scan.waspmed_next,
-    waspmed_scan.waspmed_back,
-    waspmed_scan.check_differences,
-    waspmed_generate.waspmed_generate_panel,
-    waspmed_generate.weight_thickness,
-    waspmed_generate.set_weight_paint,
-    waspmed_generate.smooth_weight,
-    waspmed_print.waspmed_print_panel,
-    waspmed_sculpt.waspmed_sculpt_panel,
-    waspmed_sculpt.set_sculpt,
-    waspmed_deform.waspmed_deform_panel,
-    waspmed_deform.add_lattice_to_object,
-    waspmed_deform.edit_lattice,
-    waspmed_deform.rotate_sections,
-    waspmed_crop.waspmed_crop_panel,
-    waspmed_crop.define_crop_planes,
-    waspmed_crop.crop_geometry
+
+    waspmed_scan.SCENE_OT_wm_setup,
+    waspmed_scan.OBJECT_OT_wm_auto_origin,
+    waspmed_scan.OBJECT_OT_wm_rebuild_mesh,
+    waspmed_scan.MESH_OT_wm_cap_holes,
+    waspmed_scan.OBJECT_OT_wm_add_measure_plane,
+    waspmed_scan.OBJECT_OT_wm_measure_circumference,
+    waspmed_scan.OBJECT_OT_wm_next,
+    waspmed_scan.OBJECT_OT_wm_back,
+    waspmed_scan.OBJECT_OT_wm_check_differences,
+    waspmed_generate.OBJECT_OT_wm_weight_thickness,
+    waspmed_generate.OBJECT_OT_wm_set_weight_paint,
+    waspmed_sculpt.OBJECT_OT_wm_set_sculpt,
+    waspmed_crop.OBJECT_OT_wm_define_crop_planes,
+    waspmed_crop.OBJECT_OT_wm_crop_geometry,
+    waspmed_deform.OBJECT_OT_wm_add_lattice_to_object,
+    waspmed_deform.OBJECT_OT_wm_edit_lattice,
+    waspmed_deform.OBJECT_OT_wm_rotate_sections,
+
+    waspmed_scan.WASPMED_PT_progress,
+    waspmed_print.WASPMED_PT_print,
+    waspmed_sculpt.WASPMED_PT_sculpt,
+    waspmed_generate.WASPMED_PT_generate,
+    waspmed_crop.WASPMED_PT_crop,
+    waspmed_deform.WASPMED_PT_deform,
+    waspmed_scan.WASPMED_PT_scan
     )
 
 

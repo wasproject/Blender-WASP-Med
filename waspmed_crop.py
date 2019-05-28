@@ -24,8 +24,8 @@ from math import sqrt, radians, pi
 import random, re
 
 
-class crop_geometry(bpy.types.Operator):
-    bl_idname = "object.crop_geometry"
+class OBJECT_OT_wm_crop_geometry(bpy.types.Operator):
+    bl_idname = "object.wm_crop_geometry"
     bl_label = "Crop Geometry"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
@@ -42,7 +42,7 @@ class crop_geometry(bpy.types.Operator):
             id = o.waspmed_prop.patientID
             s = o.waspmed_prop.status
             if patientID == id and s == status-1:
-                ob.data = o.to_mesh(bpy.context.depsgraph, True)
+                ob.data = o.to_mesh().copy()
         bpy.ops.object.mode_set(mode='EDIT')
 
         side = False
@@ -65,8 +65,8 @@ class crop_geometry(bpy.types.Operator):
         context.view_layer.objects.active = active_object
         return {'FINISHED'}
 
-class define_crop_planes(bpy.types.Operator):
-    bl_idname = "object.define_crop_planes"
+class OBJECT_OT_wm_define_crop_planes(bpy.types.Operator):
+    bl_idname = "object.wm_define_crop_planes"
     bl_label = "Define Crop Planes"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
@@ -118,7 +118,7 @@ class define_crop_planes(bpy.types.Operator):
             id = o.waspmed_prop.patientID
             s = o.waspmed_prop.status
             if patientID == id and s == status-1:
-                ob.data = o.to_mesh(bpy.context.depsgraph, True)
+                ob.data = o.to_mesh().copy()
 
         bb0 = Vector(ob.bound_box[0])
         bb1 = Vector(ob.bound_box[6])
@@ -141,7 +141,7 @@ class define_crop_planes(bpy.types.Operator):
 
             mat = bpy.data.materials.new(name="X Planes")
             context.object.data.materials.append(mat)
-            context.object.active_material.diffuse_color = (1, 1, 1)
+            context.object.active_material.diffuse_color = (1, 1, 1, alpha)
 
             bpy.ops.mesh.primitive_plane_add(
                 size=1000,
@@ -170,7 +170,7 @@ class define_crop_planes(bpy.types.Operator):
 
             mat = bpy.data.materials.new(name="Y Planes")
             context.object.data.materials.append(mat)
-            context.object.active_material.diffuse_color = (0, 1, .5)
+            context.object.active_material.diffuse_color = (0, 1, .5, alpha)
 
             bpy.ops.mesh.primitive_plane_add(
                 size=1000,
@@ -201,7 +201,7 @@ class define_crop_planes(bpy.types.Operator):
 
             mat = bpy.data.materials.new(name="Z Planes")
             context.object.data.materials.append(mat)
-            context.object.active_material.diffuse_color = (0, .1, 1)
+            context.object.active_material.diffuse_color = (0, .1, 1, alpha)
 
             bpy.ops.mesh.primitive_plane_add(
                 size=1000,
@@ -231,8 +231,8 @@ class define_crop_planes(bpy.types.Operator):
         ob.select_set(True)
         return {'FINISHED'}
 
-class define_crop_planes_old(bpy.types.Operator):
-    bl_idname = "object.define_crop_planes_old"
+class OBJECT_OT_wm_define_crop_planes_old(bpy.types.Operator):
+    bl_idname = "object.wm_define_crop_planes_old"
     bl_label = "Define Crop Planes"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
@@ -298,7 +298,7 @@ class define_crop_planes_old(bpy.types.Operator):
             id = o.waspmed_prop.patientID
             s = o.waspmed_prop.status
             if patientID == id and s == status-1:
-                ob.data = o.to_mesh(bpy.context.depsgraph, True)
+                ob.data = o.to_mesh().copy()
 
         bb0 = Vector(ob.bound_box[0])
         bb1 = Vector(ob.bound_box[6])
@@ -325,7 +325,7 @@ class define_crop_planes_old(bpy.types.Operator):
 
         mat = bpy.data.materials.new(name="Material")
         context.object.data.materials.append(mat)
-        context.object.active_material.diffuse_color = (1, 1, 1)
+        context.object.active_material.diffuse_color = (1, 1, 1, alpha)
         bpy.context.object.show_wire = True
 
         bpy.ops.mesh.primitive_plane_add(
@@ -360,7 +360,7 @@ class define_crop_planes_old(bpy.types.Operator):
 
         mat = bpy.data.materials.new(name="Material")
         context.object.data.materials.append(mat)
-        context.object.active_material.diffuse_color = (0, .1, 1)
+        context.object.active_material.diffuse_color = (0, .1, 1, alpha)
         bpy.context.object.show_wire = True
 
 
@@ -387,7 +387,7 @@ class define_crop_planes_old(bpy.types.Operator):
         ob.select_set(True)
         return {'FINISHED'}
 
-class waspmed_crop_panel(bpy.types.Panel):
+class WASPMED_PT_crop(bpy.types.Panel):
     bl_label = "Crop"
     bl_category = "Waspmed"
     bl_space_type = "VIEW_3D"
@@ -397,6 +397,8 @@ class waspmed_crop_panel(bpy.types.Panel):
     def poll(cls, context):
         try:
             ob = context.object
+            if ob.parent != None:
+                ob = ob.parent
             status = ob.waspmed_prop.status
             is_mesh = ob.type == 'MESH'
             return status == 4 and is_mesh # and not context.object.hide
@@ -405,7 +407,7 @@ class waspmed_crop_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         col = layout.column(align=True)
-        col.operator("object.define_crop_planes", text="Setting Crop Planes", icon="SETTINGS")
+        col.operator("object.wm_define_crop_planes", text="Setting Crop Planes", icon="SETTINGS")
         ob = context.object
         if ob.parent != None: ob = ob.parent
         planes = [plane for plane in ob.children if "Plane" in plane.name]
@@ -426,7 +428,7 @@ class waspmed_crop_panel(bpy.types.Panel):
         col.separator()
         col.separator()
         try:
-            col.operator("object.crop_geometry", text="Crop Geometry", icon="MOD_DECIM")
+            col.operator("object.wm_crop_geometry", text="Crop Geometry", icon="MOD_DECIM")
             col.separator()
         except:
             pass
@@ -434,6 +436,11 @@ class waspmed_crop_panel(bpy.types.Panel):
         col = box.column(align=True)
         #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
         #col.separator()
+        if context.mode == 'OBJECT':
+            col.separator()
+            col.operator("object.wm_add_measure_plane", text="Add Measure Plane", icon='MESH_PLANE')
+            col.operator("object.wm_measure_circumference", text="Measure Circumference", icon='DRIVER_DISTANCE')
+        col.separator()
         col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()
         row = col.row(align=True)

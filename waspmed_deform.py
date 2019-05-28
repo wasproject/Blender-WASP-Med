@@ -24,8 +24,8 @@ from math import sqrt, radians
 import random
 
 
-class add_lattice_to_object(bpy.types.Operator):
-    bl_idname = "object.add_lattice_to_object"
+class OBJECT_OT_wm_add_lattice_to_object(bpy.types.Operator):
+    bl_idname = "object.wm_add_lattice_to_object"
     bl_label = "Add Lattice"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
@@ -133,8 +133,8 @@ class add_lattice_to_object(bpy.types.Operator):
         ob.modifiers["Lattice"].object = lattice
         return {'FINISHED'}
 
-class edit_lattice(bpy.types.Operator):
-    bl_idname = "object.edit_lattice"
+class OBJECT_OT_wm_edit_lattice(bpy.types.Operator):
+    bl_idname = "object.wm_edit_lattice"
     bl_label = "Edit Lattice"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
@@ -164,8 +164,8 @@ class edit_lattice(bpy.types.Operator):
         bpy.ops.object.mode_set(mode='EDIT')
         return {'FINISHED'}
 
-class rotate_sections(bpy.types.Operator):
-    bl_idname = "object.rotate_sections"
+class OBJECT_OT_wm_rotate_sections(bpy.types.Operator):
+    bl_idname = "object.wm_rotate_sections"
     bl_label = "Rotate Sections"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
@@ -234,7 +234,9 @@ class rotate_sections(bpy.types.Operator):
                         ob.data.points[w*nu*nv+ v*nu + u].select = w == nw-1-i
             bpy.ops.object.mode_set(mode="OBJECT")
             bpy.ops.object.mode_set(mode="EDIT")
-            bpy.ops.transform.rotate(value=angles[min(i,len(angles)-1)], axis=(0, 0, 1))
+            #bpy.ops.transform.rotate(value=angles[min(i,len(angles)-1)], axis=(0, 0, 1))
+            #bpy.ops.transform.rotate(value=angles[min(i,len(angles)-1)], orient_axis='Z', orient_type='GLOBAL', orient_matrix=((1, 0, 0), (0, 1, 0), (0, 0, 1)))
+            bpy.ops.transform.rotate(value=angles[min(i,len(angles)-1)])
             for p in ob.data.points: p.select = False
             bpy.ops.object.mode_set(mode="OBJECT")
             bpy.ops.object.mode_set(mode="EDIT")
@@ -242,7 +244,7 @@ class rotate_sections(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class waspmed_deform_panel(bpy.types.Panel):
+class WASPMED_PT_deform(bpy.types.Panel):
 #class waspmed_scan_panel(, bpy.types.View3DPaintPanel):
     bl_label = "Deform"
     bl_category = "Waspmed"
@@ -259,6 +261,8 @@ class waspmed_deform_panel(bpy.types.Panel):
     def poll(cls, context):
         try:
             ob = context.object
+            if ob.parent != None:
+                ob = ob.parent
             status = ob.waspmed_prop.status
             is_lattice = ob.type == 'LATTICE' and ob.parent != None
             is_mesh = ob.type == 'MESH'
@@ -268,12 +272,12 @@ class waspmed_deform_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         col = layout.column(align=True)
-        col.operator("object.add_lattice_to_object", text="Add Lattice", icon="MOD_LATTICE")
+        col.operator("object.wm_add_lattice_to_object", text="Add Lattice", icon="MOD_LATTICE")
         col.separator()
         if context.mode != 'EDIT_LATTICE':
-            col.operator("object.edit_lattice", text="Edit Lattice", icon="LATTICE_DATA")
+            col.operator("object.wm_edit_lattice", text="Edit Lattice", icon="LATTICE_DATA")
         else:
-            col.operator("object.rotate_sections", text="Twist", icon="FORCE_MAGNETIC")
+            col.operator("object.wm_rotate_sections", text="Twist", icon="FORCE_MAGNETIC")
             col.separator()
             col.operator("object.editmode_toggle", text="Object Mode", icon="OUTLINER_OB_LATTICE")
         col.separator()
@@ -281,31 +285,13 @@ class waspmed_deform_panel(bpy.types.Panel):
         box = layout.box()
         col = box.column(align=True)
         #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
-        #col.separator()
+        if context.mode == 'OBJECT':
+            col.separator()
+            col.operator("object.wm_add_measure_plane", text="Add Measure Plane", icon='MESH_PLANE')
+            col.operator("object.wm_measure_circumference", text="Measure Circumference", icon='DRIVER_DISTANCE')
+        col.separator()
         col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()
         row = col.row(align=True)
         row.operator("ed.undo", icon='LOOP_BACK')
         row.operator("ed.redo", icon='LOOP_FORWARDS')
-
-'''
-classes = (
-    waspmed_deform_panel,
-    add_lattice_to_object,
-    edit_lattice,
-    rotate_sections
-)
-
-def register():
-    from bpy.utils import register_class
-    for cls in classes:
-        register_class(cls)
-
-def unregister():
-    from bpy.utils import unregister_class
-    for cls in reversed(classes):
-        unregister_class(cls)
-
-if __name__ == "__main__":
-    register()
-'''
