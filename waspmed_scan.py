@@ -23,7 +23,7 @@ import numpy as np
 from math import sqrt, radians
 import random
 
-status_list = ["scan", "remesh", "sculpt", "deform", "crop", "generate", "print"]
+status_list = ["scan", "remesh", "sculpt", "deform", "crop", "create","generate", "print"]
 
 #def store_parameters(operator, ob):
 #    ob.tissue_tessellate.generator = operator.generator
@@ -121,10 +121,11 @@ def update_trim_bottom(self, context):
             mod = ob.modifiers["Crop"]
         mod.object = box
         mod.operation = 'INTERSECT'
+        mod.double_threshold = 0
         #mod.solver = 'CARVE'
         if ob.waspmed_prop.bool_trim_bottom:
             mod.show_viewport = False
-            context.scene.update()
+            #context.scene.update()
         mod.show_viewport = ob.waspmed_prop.bool_trim_bottom
 
     #except:
@@ -419,7 +420,22 @@ class OBJECT_OT_wm_next(bpy.types.Operator):
         next_status = status_list[status+1]
         if status == 0 and init_object:
             ob.name = "00_" + patientID + "_" + old_status
-            bpy.context.collection.name = patientID
+            user_col = ob.users_collection[0]
+            bool_new_col = len(user_col.objects) > 1
+            if not bool_new_col:
+                try:
+                    user_col.name = patientID
+                except:
+                    bool_new_col = True
+            if bool_new_col:
+                col = bpy.data.collections.new(patientID)
+                bpy.context.scene.collection.children.link(col)
+                col.objects.link(ob)
+                try: bpy.context.scene.collection.objects.unlink(ob)
+                except: pass
+                for c in bpy.data.collections:
+                    if c != col and ob in c.objects: c.objects.unlink(ob)
+            #bpy.context.collection.name = patientID
         if status == 5:
             bpy.ops.object.wm_weight_thickness()
             new_ob = context.object
@@ -434,13 +450,15 @@ class OBJECT_OT_wm_next(bpy.types.Operator):
 
             bpy.context.object.waspmed_prop.patientID = patientID
         else:
-            bpy.ops.object.duplicate_move()
+            bpy.ops.object.convert(target='MESH', keep_original=True)
+            #bpy.ops.object.duplicate_move()
         bpy.ops.object.mode_set(mode='OBJECT')
         try:
             bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
         except:
             pass
         new_ob = context.object
+
         new_ob.waspmed_prop.status = status + 1
         new_ob.name = str(status+1).zfill(2) + "_" + patientID + "_" + next_status
         #for o in bpy.data.objects:
@@ -458,12 +476,15 @@ class OBJECT_OT_wm_next(bpy.types.Operator):
 
         if status != 5:
             for vg in new_ob.vertex_groups: new_ob.vertex_groups.remove(vg)
-            for mod in new_ob.modifiers:
+            #for mod in new_ob.modifiers:
                 #new_ob.modifiers.remove(mod)
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier=mod.name)
+                #try: bpy.ops.object.modifier_apply(apply_as='DATA', modifier=mod.name)
+                #except: pass
+            #bpy.ops.object.convert(target='MESH')
 
         old_ob.hide_viewport = True
         old_ob.select_set(False)
+        new_ob.select_set(True)
         return {'FINISHED'}
 
 class OBJECT_OT_wm_back(bpy.types.Operator):
@@ -595,13 +616,13 @@ class OBJECT_OT_wm_auto_origin(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     rotx : bpy.props.FloatProperty(
-        name="Rotation X", default=90, soft_min=-180, soft_max=180,
+        name="Rotation X", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation X")
     roty : bpy.props.FloatProperty(
         name="Rotation Y", default=0.00, soft_min=-180, soft_max=180,
         description="Rotation Y")
     rotz : bpy.props.FloatProperty(
-        name="Rotation Z", default=-45.00, soft_min=-180, soft_max=180,
+        name="Rotation Z", default=-0.00, soft_min=-180, soft_max=180,
         description="Rotation Z")
 
     @classmethod
@@ -706,6 +727,12 @@ class SCENE_OT_wm_setup(bpy.types.Operator):
         set_mm()
         set_clipping_planes()
         context.scene.waspmed_prop.do_setup = False
+        for brush in bpy.data.brushes:
+            brush.spacing = 5
+        for area in bpy.context.window.screen.areas:
+            if area.type == 'OUTLINER':
+                area.spaces[0].show_restrict_column_viewport = True
+                area.spaces[0].show_restrict_column_select = True
         return {'FINISHED'}
 
 ### Sculpt Tools ###
@@ -763,8 +790,10 @@ class WASPMED_PT_progress(View3DPaintPanel, bpy.types.Panel):
                 col.separator()
                 row = col.row(align=True)
                 row.operator("object.wm_back", icon='BACK')#, text="")
-                if context.object.waspmed_prop.status == 6:
+                if context.object.waspmed_prop.status == 7:
                     row.operator("export_mesh.stl", icon='EXPORT')#, text="")
+                #elif context.object.waspmed_prop.status == 6:
+                #    row.operator("object.convert", icon='EXPORT')#, text="")
                 else:
                     row.operator("object.wm_next", icon='FORWARD')#, text="")
 

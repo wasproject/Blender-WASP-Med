@@ -32,6 +32,7 @@ class OBJECT_OT_wm_crop_geometry(bpy.types.Operator):
 
     def execute(self, context):
         active_object = context.object
+        selected = context.selected_objects
         ob = active_object.parent
         if ob == None: ob = active_object
         for o in bpy.data.objects: o.select_set(o == ob)
@@ -62,7 +63,10 @@ class OBJECT_OT_wm_crop_geometry(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode='OBJECT')
 
+        for o in bpy.data.objects:
+            o.select_set(o in selected)
         context.view_layer.objects.active = active_object
+
         return {'FINISHED'}
 
 class OBJECT_OT_wm_define_crop_planes(bpy.types.Operator):

@@ -108,7 +108,7 @@ class OBJECT_OT_wm_weight_thickness(bpy.types.Operator):
 
         # define iso values
         iso_values = []
-        n_cuts = 32
+        n_cuts = 24
         for i_cut in range(n_cuts):
             delta_iso = abs(max_iso - min_iso)
             min_iso = min(min_iso, max_iso)
@@ -217,7 +217,10 @@ class OBJECT_OT_wm_weight_thickness(bpy.types.Operator):
 
             #print("generate new bmesh")
             # adding new vertices
-            for v in verts: new_vert = bm.verts.new(v)
+            new_verts = []
+            for v in verts:
+                new_verts.append(bm.verts.new(v))
+            #verts = [0]*len(verts) + verts
             bm.verts.index_update()
             bm.verts.ensure_lookup_table()
             # adding new faces
@@ -335,7 +338,14 @@ class OBJECT_OT_wm_weight_thickness(bpy.types.Operator):
         mod.thickness_vertex_group = self.min_thickness / self.max_thickness
         mod.offset = 1
 
-        bpy.ops.paint.weight_paint_toggle()
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_linked(delimit=set())
+        bpy.ops.mesh.select_all(action='INVERT')
+        bpy.ops.mesh.delete(type='VERT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+
+        #bpy.ops.paint.weight_paint_toggle()
         #bpy.context.space_data.viewport_shade = 'WIREFRAME'
         ob.data.update()
         print("Contour Displace time: " + str(timeit.default_timer() - start_time) + " sec")

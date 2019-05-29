@@ -51,12 +51,12 @@ import bpy, bmesh
 bl_info = {
 	"name": "Waspmed",
 	"author": "WASP",
-	"version": (0, 0, 4),
+	"version": (0, 0, 5),
 	"blender": (2, 80, 0),
 	"location": "",
 	"description": "Tools for medical devices",
 	"warning": "",
-	"wiki_url": (""),
+	"wiki_url": ("https://github.com/wasproject/Blender-WASP-Med"),
 	"tracker_url": "",
 	"category": "Mesh"}
 
