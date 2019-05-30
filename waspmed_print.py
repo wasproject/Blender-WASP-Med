@@ -24,12 +24,12 @@ from math import sqrt, radians
 import random
 
 
-class waspmed_print_panel(bpy.types.Panel):
+class WASPMED_PT_print(bpy.types.Panel):
 #class waspmed_scan_panel(, bpy.types.View3DPaintPanel):
     bl_label = "Print"
     bl_category = "Waspmed"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
+    bl_region_type = "UI"
     #bl_options = {}
     #bl_context = "objectmode"
 
@@ -41,9 +41,11 @@ class waspmed_print_panel(bpy.types.Panel):
     def poll(cls, context):
         try:
             ob = context.object
+            if ob.parent != None:
+                ob = ob.parent
             status = ob.waspmed_prop.status
             is_mesh = ob.type == 'MESH'
-            return status == 6 and is_mesh and not context.object.hide
+            return status == 6 and is_mesh and not context.object.hide_viewport
         except: return False
 
     def draw(self, context):
@@ -54,6 +56,15 @@ class waspmed_print_panel(bpy.types.Panel):
         col.label(text="Shell Thickness:")#, icon='MOD_WARP')
         col.prop(context.object.waspmed_prop, "min_thickness")
         col.prop(context.object.waspmed_prop, "max_thickness")
+        col.separator()
+        col.label(text="Profile:")
+        md = context.object.modifiers["Profile"]
+
+        row = col.row(align=True)
+        row.prop(md, 'falloff_type', text='')
+        row.prop(md, 'show_viewport', text='')
+        if md.falloff_type == 'CURVE':
+            col.template_curve_mapping(md, "map_curve")
         col.separator()
 
         col.label(text="Smooth:")#, icon='MOD_SMOOTH')
@@ -82,22 +93,14 @@ class waspmed_print_panel(bpy.types.Panel):
         box = layout.box()
         col = box.column(align=True)
         #col.label(text="Utils:")
-        col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
+        #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
+        if context.mode == 'OBJECT' and False:
+            col.separator()
+            col.operator("object.add_measure_plane", text="Add Measure Plane", icon='MESH_PLANE')
+            col.operator("object.measure_circumference", text="Measure Circumference", icon='DRIVER_DISTANCE')
         col.separator()
-        col.operator("screen.region_quadview", text="Toggle Quad View", icon='SPLITSCREEN')
+        col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()
         row = col.row(align=True)
         row.operator("ed.undo", icon='LOOP_BACK')
         row.operator("ed.redo", icon='LOOP_FORWARDS')
-
-
-def register():
-    bpy.utils.register_class(waspmed_print_panel)
-
-
-def unregister():
-    bpy.utils.unregister_class(waspmed_print_panel)
-
-
-if __name__ == "__main__":
-    register()

@@ -23,18 +23,19 @@ import numpy as np
 from math import sqrt, radians
 import random
 
-class smooth_weight(bpy.types.Operator):
-    bl_idname = "object.smooth_weight"
+'''
+class WASPMED_OT_smooth_weight(bpy.types.Operator):
+    #bl_idname = "object.WASPMED_OT_smooth_weight"
     bl_label = "Smooth Weight"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
-    factor = bpy.props.FloatProperty(
+    factor : bpy.props.FloatProperty(
         name="Factor", default=0.5, min=0, max=1)
-    repeat = bpy.props.IntProperty(
+    repeat : bpy.props.IntProperty(
         name="Max Thickness", default=1, min=0, soft_max=20,
         description="Thickness in the red area")
-    expand = bpy.props.FloatProperty(
+    expand : bpy.props.FloatProperty(
         name="Expand/Contract", default=0, min=-1, max=1)
 
     @classmethod
@@ -47,17 +48,18 @@ class smooth_weight(bpy.types.Operator):
         bpy.ops.object.vertex_group_smooth(factor=self.factor, repeat=self.repeat, expand=self.expand)
         context.object.data.use_paint_mask_vertex = False
         return {'FINISHED'}
+'''
 
-class weight_thickness(bpy.types.Operator):
-    bl_idname = "object.weight_thickness"
+class OBJECT_OT_wm_weight_thickness(bpy.types.Operator):
+    bl_idname = "object.wm_weight_thickness"
     bl_label = "Weight Thickness"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
-    min_thickness = bpy.props.FloatProperty(
+    min_thickness : bpy.props.FloatProperty(
         name="Min Thickness", default=3, min=0.01, soft_max=10,
         description="Thickness in the blue area")
-    max_thickness = bpy.props.FloatProperty(
+    max_thickness : bpy.props.FloatProperty(
         name="Max Thickness", default=6, min=0.01, soft_max=10,
         description="Thickness in the red area")
 
@@ -67,7 +69,7 @@ class weight_thickness(bpy.types.Operator):
 
     def execute(self, context):
         bool_flip = True
-        min_iso, max_iso = 0.49, 0.51
+        min_iso, max_iso = 0.25, 0.75
         start_time = timeit.default_timer()
         try:
             check = bpy.context.object.vertex_groups[0]
@@ -106,11 +108,12 @@ class weight_thickness(bpy.types.Operator):
 
         # define iso values
         iso_values = []
-        for i_cut in range(2):
+        n_cuts = 24
+        for i_cut in range(n_cuts):
             delta_iso = abs(max_iso - min_iso)
             min_iso = min(min_iso, max_iso)
             if delta_iso == 0: iso_val = min_iso
-            else: iso_val = i_cut*delta_iso + min_iso
+            else: iso_val = i_cut*delta_iso/(n_cuts-1) + min_iso
             iso_values.append(iso_val)
 
         # Start Cuts Iterations
@@ -214,7 +217,10 @@ class weight_thickness(bpy.types.Operator):
 
             #print("generate new bmesh")
             # adding new vertices
-            for v in verts: new_vert = bm.verts.new(v)
+            new_verts = []
+            for v in verts:
+                new_verts.append(bm.verts.new(v))
+            #verts = [0]*len(verts) + verts
             bm.verts.index_update()
             bm.verts.ensure_lookup_table()
             # adding new faces
@@ -250,11 +256,10 @@ class weight_thickness(bpy.types.Operator):
         ob = bpy.data.objects.new(name, me)
 
         # Link object to scene and make active
-        scn = bpy.context.scene
-        scn.objects.link(ob)
-        scn.objects.active = ob
-        ob.select = True
-        ob0.select = False
+        bpy.context.collection.objects.link(ob)
+        bpy.context.view_layer.objects.active = ob
+        ob.select_set(True)
+        ob0.select_set(False)
 
         # generate new vertex group
         for g in ob0.vertex_groups:
@@ -270,7 +275,8 @@ class weight_thickness(bpy.types.Operator):
             w = all_weight[id]
             direction = bool_flip
             for i in range(len(iso_values)-1):
-                val0, val1 = iso_values[i], iso_values[i+1]
+                val0, val1 = iso_values[0], iso_values[-1]
+                #val0, val1 = iso_values[i], iso_values[i+1]
                 if val0 < w <= val1:
                     if direction: w1 = (w-val0)/(val1-val0)
                     else: w1 = (val1-w)/(val1-val0)
@@ -280,7 +286,8 @@ class weight_thickness(bpy.types.Operator):
             w2 = w1
             if w == iso_values[0]: w2 = 1
             ob.vertex_groups[vertex_group_name].add([id], w1, 'REPLACE')
-            ob.vertex_groups["Smooth"].add([id], w2, 'REPLACE')
+            #ob.vertex_groups["Smooth"].add([id], w2, 'REPLACE')
+            #ob.vertex_groups["Smooth"].add([id], w>min_iso, 'REPLACE')
         #print("weight done")
         #for id in range(len(weight), len(ob.data.vertices)):
         #    ob.vertex_groups[vertex_group_name].add([id], iso_val*0, 'ADD')
@@ -291,25 +298,39 @@ class weight_thickness(bpy.types.Operator):
         # materials
         bpy.ops.object.material_slot_add()
         bpy.ops.object.material_slot_add()
+        bpy.ops.object.material_slot_add()
         try: body_mat = bpy.data.materials["Body"]
         except: body_mat = bpy.data.materials.new("Body")
+        try: border_mat = bpy.data.materials["Border"]
+        except: border_mat = bpy.data.materials.new("Border")
         try: corset_mat = bpy.data.materials["Corset"]
-        except:
-            corset_mat = bpy.data.materials.new("Corset")
-        corset_mat.diffuse_color = (0.31,0.737,0.792)
+        except: corset_mat = bpy.data.materials.new("Corset")
+        corset_mat.diffuse_color = (0.31,0.737,0.792,1)
+        border_mat.diffuse_color = (0.31*0.6, 0.737*0.6, 0.792*0.6,1)
         ob.material_slots[0].material = body_mat
-        ob.material_slots[1].material = corset_mat
+        ob.material_slots[1].material = border_mat
+        ob.material_slots[2].material = corset_mat
         for p in ob.data.polygons:
             bool_corset = True
+            bool_body = True
             for v in p.vertices:
-                if ob.vertex_groups["Smooth"].weight(v) == 0:
-                    bool_corset = False
-            if bool_corset: p.material_index = 1
+                #w = ob.vertex_groups["Group"].weight(v)
+                w = ob.vertex_groups.active.weight(v)
+                if w < 1: bool_corset = False
+                if w > 0: bool_body = False
+            if bool_corset: p.material_index = 2
+            elif not bool_body: p.material_index = 1
+            if not bool_body:
+                for id in p.vertices:
+                    ob.vertex_groups["Smooth"].add([id], 1, 'REPLACE')
 
         # align new object
         ob.matrix_world = ob0.matrix_world
 
         # Displace Modifier
+        ob.modifiers.new(type='VERTEX_WEIGHT_EDIT', name='Profile')
+        group_name = ob.vertex_groups.active.name
+        bpy.context.object.modifiers["Profile"].vertex_group = group_name
         ob.modifiers.new(type='SOLIDIFY', name='Solidify')
         mod = ob.modifiers["Solidify"]
         mod.thickness = self.max_thickness
@@ -317,20 +338,31 @@ class weight_thickness(bpy.types.Operator):
         mod.thickness_vertex_group = self.min_thickness / self.max_thickness
         mod.offset = 1
 
-        bpy.ops.paint.weight_paint_toggle()
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_linked(delimit=set())
+        bpy.ops.mesh.select_all(action='INVERT')
+        bpy.ops.mesh.delete(type='VERT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+
+        #bpy.ops.paint.weight_paint_toggle()
         #bpy.context.space_data.viewport_shade = 'WIREFRAME'
         ob.data.update()
         print("Contour Displace time: " + str(timeit.default_timer() - start_time) + " sec")
 
         return {'FINISHED'}
 
-class set_weight_paint(bpy.types.Operator):
-    bl_idname = "object.set_weight_paint"
+class OBJECT_OT_wm_set_weight_paint(bpy.types.Operator):
+    bl_idname = "object.wm_set_weight_paint"
     bl_label = "Weight Paint"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        ob = context.object
+        if ob.parent != None: ob = ob.parent
+        bpy.context.view_layer.objects.active = ob
+        ob.select_set(True)
         bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
         return {'FINISHED'}
 
@@ -344,19 +376,19 @@ from bl_ui.properties_paint_common import (
 
 class View3DPanel:
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
 
 class View3DPaintPanel(UnifiedPaintPanel):
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
 
 ### END Sculpt Tools ###
 
-class waspmed_generate_panel(View3DPaintPanel, bpy.types.Panel):
+class WASPMED_PT_generate(View3DPaintPanel, bpy.types.Panel):
     bl_label = "Generate"
     bl_category = "Waspmed"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
+    bl_region_type = "UI"
     #bl_options = {}
     #bl_context = "objectmode"
 
@@ -370,9 +402,11 @@ class waspmed_generate_panel(View3DPaintPanel, bpy.types.Panel):
     def poll(cls, context):
         try:
             ob = context.object
+            if ob.parent != None:
+                ob = ob.parent
             status = ob.waspmed_prop.status
             is_mesh = ob.type == 'MESH'
-            return status == 5 and is_mesh and not context.object.hide
+            return status == 5 and is_mesh and not context.object.hide_viewport
         except: return False
 
     def draw(self, context):
@@ -387,38 +421,23 @@ class waspmed_generate_panel(View3DPaintPanel, bpy.types.Panel):
             self.prop_unified_size(col, context, brush, "size", slider=True, text="Radius")
             self.prop_unified_strength(col, context, brush, "strength", text="Strength")
         else:
-            col.operator("object.set_weight_paint", icon="BRUSH_DATA")
+            col.operator("object.wm_set_weight_paint", icon="BRUSH_DATA")
 
         col.separator()
-        col.operator("object.smooth_weight", icon="SMOOTHCURVE")
+
+        #col.operator("object.smooth_weight", icon="SMOOTHCURVE")
+        col.operator("object.vertex_group_smooth", text="Smooth Weight", icon="SMOOTHCURVE")
 
         box = layout.box()
         col = box.column(align=True)
-        col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
+        #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
+        if context.mode == 'OBJECT':
+            col.separator()
+            col.operator("object.wm_add_measure_plane", text="Add Measure Plane", icon='MESH_PLANE')
+            col.operator("object.wm_measure_circumference", text="Measure Circumference", icon='DRIVER_DISTANCE')
         col.separator()
-        col.operator("screen.region_quadview", text="Toggle Quad View", icon='SPLITSCREEN')
+        col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()
         row = col.row(align=True)
         row.operator("ed.undo", icon='LOOP_BACK')
         row.operator("ed.redo", icon='LOOP_FORWARDS')
-
-classes = (
-    waspmed_generate_panel,
-    weight_thickness,
-    set_weight_paint,
-    smooth_weight
-)
-
-def register():
-    from bpy.utils import register_class
-    for cls in classes:
-        register_class(cls)
-
-def unregister():
-    from bpy.utils import unregister_class
-    for cls in reversed(classes):
-        try: unregister_class(cls)
-        except: pass
-
-if __name__ == "__main__":
-    register()

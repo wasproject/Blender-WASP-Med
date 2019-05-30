@@ -24,25 +24,26 @@ from math import sqrt, radians, pi
 import random, re
 
 
-class crop_geometry(bpy.types.Operator):
-    bl_idname = "object.crop_geometry"
+class OBJECT_OT_wm_crop_geometry(bpy.types.Operator):
+    bl_idname = "object.wm_crop_geometry"
     bl_label = "Crop Geometry"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         active_object = context.object
+        selected = context.selected_objects
         ob = active_object.parent
         if ob == None: ob = active_object
-        context.scene.objects.active = ob
+        for o in bpy.data.objects: o.select_set(o == ob)
+        context.view_layer.objects.active = ob
         patientID = ob.waspmed_prop.patientID
         status = ob.waspmed_prop.status
         for o in bpy.data.objects:
             id = o.waspmed_prop.patientID
             s = o.waspmed_prop.status
             if patientID == id and s == status-1:
-                ob.data = o.to_mesh(bpy.context.scene, apply_modifiers=True,
-                settings='PREVIEW')
+                ob.data = o.to_mesh().copy()
         bpy.ops.object.mode_set(mode='EDIT')
 
         side = False
@@ -55,29 +56,32 @@ class crop_geometry(bpy.types.Operator):
                 nor = plane.data.polygons[0].normal# * plane.matrix_world
                 matrix = plane.matrix_world
                 matrix_new = matrix.to_3x3().inverted().transposed()
-                nor = matrix_new * nor
+                nor = matrix_new @ nor
                 nor.normalize()
                 bpy.ops.mesh.bisect(plane_co=loc, plane_no=nor, use_fill=plane.waspmed_prop.plane_cap, clear_outer=True)
             except: pass
 
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        context.scene.objects.active = active_object
+        for o in bpy.data.objects:
+            o.select_set(o in selected)
+        context.view_layer.objects.active = active_object
+
         return {'FINISHED'}
 
-class define_crop_planes(bpy.types.Operator):
-    bl_idname = "object.define_crop_planes"
+class OBJECT_OT_wm_define_crop_planes(bpy.types.Operator):
+    bl_idname = "object.wm_define_crop_planes"
     bl_label = "Define Crop Planes"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
-    x_planes = bpy.props.BoolProperty(
+    x_planes : bpy.props.BoolProperty(
         name="X Planes", default=True,
         description="Generate X Planes")
-    y_planes = bpy.props.BoolProperty(
+    y_planes : bpy.props.BoolProperty(
         name="Y Planes", default=True,
         description="Generate Y Planes")
-    z_planes = bpy.props.BoolProperty(
+    z_planes : bpy.props.BoolProperty(
         name="Z Planes", default=True,
         description="Generate Z Planes")
 
@@ -118,21 +122,12 @@ class define_crop_planes(bpy.types.Operator):
             id = o.waspmed_prop.patientID
             s = o.waspmed_prop.status
             if patientID == id and s == status-1:
-                ob.data = o.to_mesh(bpy.context.scene, apply_modifiers=True,
-                settings='PREVIEW')
-        #bpy.ops.object.empty_add(type='CUBE')
-        #empty = context.object
+                ob.data = o.to_mesh().copy()
 
-        #context.scene.objects.active = ob
-        #ob.select = True
-        #bpy.ops.object.parent_set(type='OBJECT', keep_transform=True)
-
-        #empty.parent = ob
         bb0 = Vector(ob.bound_box[0])
         bb1 = Vector(ob.bound_box[6])
         bb_origin = (bb0+bb1)/2
         bb_size = bb1-bb0
-        #empty.location = bb_origin
 
         alpha = 0.4
 
@@ -141,7 +136,7 @@ class define_crop_planes(bpy.types.Operator):
         # Planes X
         if self.x_planes:
             bpy.ops.mesh.primitive_plane_add(
-                radius=1000,
+                size=1000,
                 location=(bb_origin.x - bb_size.x/2, bb_origin.y, bb_origin.z),
                 rotation=(0, -pi/2, 0))
             plane_x0 = context.object
@@ -150,13 +145,10 @@ class define_crop_planes(bpy.types.Operator):
 
             mat = bpy.data.materials.new(name="X Planes")
             context.object.data.materials.append(mat)
-            context.object.active_material.diffuse_color = (1, 1, 1)
-            context.object.active_material.use_transparency = True
-            context.object.active_material.alpha = alpha
-            context.object.active_material.use_object_color = True
+            context.object.active_material.diffuse_color = (1, 1, 1, alpha)
 
             bpy.ops.mesh.primitive_plane_add(
-                radius=1000,
+                size=1000,
                 location=(bb_origin.x + bb_size.x/2, bb_origin.y, bb_origin.z),
                 rotation=(0, pi/2, 0))
             plane_x1 = context.object
@@ -173,7 +165,7 @@ class define_crop_planes(bpy.types.Operator):
         # Planes Y
         if self.y_planes:
             bpy.ops.mesh.primitive_plane_add(
-                radius=1000,
+                size=1000,
                 location=(bb_origin.x, bb_origin.y - bb_size.y/2, bb_origin.z),
                 rotation=(pi/2, 0, 0))
             plane_y0 = context.object
@@ -182,13 +174,10 @@ class define_crop_planes(bpy.types.Operator):
 
             mat = bpy.data.materials.new(name="Y Planes")
             context.object.data.materials.append(mat)
-            context.object.active_material.diffuse_color = (0, 1, .5)
-            context.object.active_material.use_transparency = True
-            context.object.active_material.alpha = alpha
-            context.object.active_material.use_object_color = True
+            context.object.active_material.diffuse_color = (0, 1, .5, alpha)
 
             bpy.ops.mesh.primitive_plane_add(
-                radius=1000,
+                size=1000,
                 location=(bb_origin.x, bb_origin.y + bb_size.y/2, bb_origin.z),
                 rotation=(-pi/2, 0,  0))
             plane_y1 = context.object
@@ -207,7 +196,7 @@ class define_crop_planes(bpy.types.Operator):
         # Planes Z
         if self.z_planes:
             bpy.ops.mesh.primitive_plane_add(
-                radius=1000,
+                size=1000,
                 location=(bb_origin.x, bb_origin.y, bb_origin.z - bb_size.z/2),
                 rotation=(0, pi, 0))
             plane_z0 = context.object
@@ -216,13 +205,10 @@ class define_crop_planes(bpy.types.Operator):
 
             mat = bpy.data.materials.new(name="Z Planes")
             context.object.data.materials.append(mat)
-            context.object.active_material.diffuse_color = (0, .1, 1)
-            context.object.active_material.use_transparency = True
-            context.object.active_material.alpha = alpha
-            context.object.active_material.use_object_color = True
+            context.object.active_material.diffuse_color = (0, .1, 1, alpha)
 
             bpy.ops.mesh.primitive_plane_add(
-                radius=1000,
+                size=1000,
                 location=(bb_origin.x, bb_origin.y, bb_origin.z + bb_size.z/2),
                 rotation=(0, 0, 0))
             plane_z1 = context.object
@@ -239,38 +225,38 @@ class define_crop_planes(bpy.types.Operator):
         for plane in planes:
             #c.draw_type = 'BOUNDS'
             plane.parent = ob
-            plane.show_transparent = True
+            #plane.show_transparent = True
             plane.show_wire = True
             plane.show_name = True
             plane.waspmed_prop.status = 4
             plane.waspmed_prop.plane_cap = "Z" not in plane.name
-            plane.select = False
-        context.scene.objects.active = ob
-        ob.select = True
+            plane.select_set(False)
+        context.view_layer.objects.active = ob
+        ob.select_set(True)
         return {'FINISHED'}
 
-class define_crop_planes_old(bpy.types.Operator):
-    bl_idname = "object.define_crop_planes_old"
+class OBJECT_OT_wm_define_crop_planes_old(bpy.types.Operator):
+    bl_idname = "object.wm_define_crop_planes_old"
     bl_label = "Define Crop Planes"
     bl_description = ("")
     bl_options = {'REGISTER', 'UNDO'}
 
-    x0 = bpy.props.FloatProperty(
+    x0 : bpy.props.FloatProperty(
         name="Trim X0", default=0.00, soft_min=0, soft_max=500,
         description="Trim X0")
-    x1 = bpy.props.FloatProperty(
+    x1 : bpy.props.FloatProperty(
         name="Trim X1", default=0.00, soft_min=-500, soft_max=0,
         description="Trim X1")
-    y0 = bpy.props.FloatProperty(
+    y0 : bpy.props.FloatProperty(
         name="Trim Y0", default=0.00, soft_min=0, soft_max=500,
         description="Trim Y0")
-    y1 = bpy.props.FloatProperty(
+    y1 : bpy.props.FloatProperty(
         name="Trim Y1", default=0.00, soft_min=-500, soft_max=0,
         description="Trim Y1")
-    z0 = bpy.props.FloatProperty(
+    z0 : bpy.props.FloatProperty(
         name="Trim Z0", default=0.00, soft_min=0, soft_max=500,
         description="Trim Z0")
-    z1 = bpy.props.FloatProperty(
+    z1 : bpy.props.FloatProperty(
         name="Trim Z1", default=0.00, soft_min=-500, soft_max=0,
         description="Trim Z1")
 
@@ -316,16 +302,8 @@ class define_crop_planes_old(bpy.types.Operator):
             id = o.waspmed_prop.patientID
             s = o.waspmed_prop.status
             if patientID == id and s == status-1:
-                ob.data = o.to_mesh(bpy.context.scene, apply_modifiers=True,
-                settings='PREVIEW')
-        #bpy.ops.object.empty_add(type='CUBE')
-        #empty = context.object
+                ob.data = o.to_mesh().copy()
 
-        #context.scene.objects.active = ob
-        #ob.select = True
-        #bpy.ops.object.parent_set(type='OBJECT', keep_transform=True)
-
-        #empty.parent = ob
         bb0 = Vector(ob.bound_box[0])
         bb1 = Vector(ob.bound_box[6])
         bb0 += Vector((self.x0, self.y0, self.z0))
@@ -337,7 +315,7 @@ class define_crop_planes_old(bpy.types.Operator):
 
         # Planes X
         bpy.ops.mesh.primitive_plane_add(
-            radius=1000,
+            size=1000,
             location=(bb_origin.x + bb0.x, bb_origin.y, bb_origin.z),
             rotation=(0, -pi/2, 0))
         plane_x0 = context.object
@@ -351,15 +329,11 @@ class define_crop_planes_old(bpy.types.Operator):
 
         mat = bpy.data.materials.new(name="Material")
         context.object.data.materials.append(mat)
-        context.object.active_material.diffuse_color = (1, 1, 1)
-        context.object.active_material.use_transparency = True
-        context.object.active_material.alpha = alpha
-        context.object.active_material.use_object_color = True
-        context.object.show_transparent = True
+        context.object.active_material.diffuse_color = (1, 1, 1, alpha)
         bpy.context.object.show_wire = True
 
         bpy.ops.mesh.primitive_plane_add(
-            radius=1000,
+            size=1000,
             location=(bb_origin.x - bb0.x, bb_origin.y, bb_origin.z),
             rotation=(0, pi/2, 0))
         plane_x1 = context.object
@@ -371,42 +345,12 @@ class define_crop_planes_old(bpy.types.Operator):
         plane_x1.hide_select = True
         plane_x1.parent = ob
         context.object.data.materials.append(mat)
-        context.object.show_transparent = True
+        #context.object.show_transparent = True
         bpy.context.object.show_wire = True
-
-
-        '''
-        # Planes Y
-        bpy.ops.mesh.primitive_plane_add(
-            radius=1000,
-            location=(bb_origin.x, bb_origin.y + bb0.y, bb_origin.z),
-            rotation=(-pi/2, 0, 0))
-        plane_y0 = context.object
-        plane_y0.name = "Plane Y0"
-        plane_y0.constraints.new(type='LIMIT_LOCATION')
-        plane_y0.constraints[0].use_min_y = True
-        plane_y0.constraints[0].min_y = bb0.y
-        plane_y0.dimensions = ob.dimensions.xzy
-        plane_y0.hide_select = True
-        plane_y0.parent = ob
-
-        bpy.ops.mesh.primitive_plane_add(
-            radius=1000,
-            location=(bb_origin.x, bb_origin.y - bb0.y, bb_origin.z),
-            rotation=(pi/2, 0,  0))
-        plane_y1 = context.object
-        plane_y1.name = "Plane Y1"
-        plane_y1.constraints.new(type='LIMIT_LOCATION')
-        plane_y1.constraints[0].use_max_y = True
-        plane_y1.constraints[0].max_y = bb1.y
-        plane_y1.dimensions = ob.dimensions.xzy
-        plane_y1.hide_select = True
-        plane_y1.parent = ob
-        '''
 
         # Planes Z
         bpy.ops.mesh.primitive_plane_add(
-            radius=1000,
+            size=1000,
             location=(bb_origin.x, bb_origin.y, bb_origin.z + bb0.z),
             rotation=(0, pi, 0))
         plane_z0 = context.object
@@ -420,16 +364,12 @@ class define_crop_planes_old(bpy.types.Operator):
 
         mat = bpy.data.materials.new(name="Material")
         context.object.data.materials.append(mat)
-        context.object.active_material.diffuse_color = (0, .1, 1)
-        context.object.active_material.use_transparency = True
-        context.object.active_material.alpha = alpha
-        context.object.active_material.use_object_color = True
-        context.object.show_transparent = True
+        context.object.active_material.diffuse_color = (0, .1, 1, alpha)
         bpy.context.object.show_wire = True
 
 
         bpy.ops.mesh.primitive_plane_add(
-            radius=1000,
+            size=1000,
             location=(bb_origin.x, bb_origin.y, bb_origin.z - bb0.z),
             rotation=(0, 0, 0))
         plane_z1 = context.object
@@ -441,33 +381,28 @@ class define_crop_planes_old(bpy.types.Operator):
         plane_z1.hide_select = True
         plane_z1.parent = ob
         context.object.data.materials.append(mat)
-        context.object.show_transparent = True
+        #context.object.show_transparent = True
         bpy.context.object.show_wire = True
 
         for c in ob.children:
             #c.draw_type = 'BOUNDS'
-            c.select = False
-        context.scene.objects.active = ob
-        ob.select = True
+            c.select_set(False)
+        context.view_layer.objects.active = ob
+        ob.select_set(True)
         return {'FINISHED'}
 
-class waspmed_crop_panel(bpy.types.Panel):
-#class waspmed_scan_panel(, bpy.types.View3DPaintPanel):
+class WASPMED_PT_crop(bpy.types.Panel):
     bl_label = "Crop"
     bl_category = "Waspmed"
     bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    #bl_options = {}
-    #bl_context = "objectmode"
-
-    #@classmethod
-    #def poll(cls, context):
-    #    return context.mode in {'OBJECT', 'EDIT_MESH'}
+    bl_region_type = "UI"
 
     @classmethod
     def poll(cls, context):
         try:
             ob = context.object
+            if ob.parent != None:
+                ob = ob.parent
             status = ob.waspmed_prop.status
             is_mesh = ob.type == 'MESH'
             return status == 4 and is_mesh # and not context.object.hide
@@ -476,11 +411,10 @@ class waspmed_crop_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         col = layout.column(align=True)
-        col.operator("object.define_crop_planes", text="Setting Crop Planes", icon="SETTINGS")
+        col.operator("object.wm_define_crop_planes", text="Setting Crop Planes", icon="SETTINGS")
         ob = context.object
         if ob.parent != None: ob = ob.parent
         planes = [plane for plane in ob.children if "Plane" in plane.name]
-        col.separator()
 
         separator = True
         for p in planes:
@@ -489,40 +423,30 @@ class waspmed_crop_panel(bpy.types.Panel):
             separator = "1" in p.name
             row = col.row(align=True)
             icon = "RADIOBUT_ON" if p == context.object else "RADIOBUT_OFF"
-            icon = "SPACE2" if p == context.object else "SPACE3"
+            #icon = "SPACE2" if p == context.object else "SPACE3"
             row.label(text=p.name, icon=icon)
             #row.prop(p, "select", text="")
             row.prop(p.waspmed_prop, "plane_cap", text="", icon="SNAP_FACE")
-            row.prop(p, "hide", text="")
+            row.prop(p, "hide_viewport", text="")
             row.prop(p, "hide_select", text="")
         col.separator()
+        col.separator()
         try:
-            col.operator("object.crop_geometry", text="Crop Geometry", icon="MOD_DECIM")
+            col.operator("object.wm_crop_geometry", text="Crop Geometry", icon="MOD_DECIM")
+            col.separator()
         except:
             pass
-        col.separator()
         box = layout.box()
         col = box.column(align=True)
-        col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
+        #col.operator("view3d.ruler", text="Ruler", icon="ARROW_LEFTRIGHT")
+        #col.separator()
+        if context.mode == 'OBJECT':
+            col.separator()
+            col.operator("object.wm_add_measure_plane", text="Add Measure Plane", icon='MESH_PLANE')
+            col.operator("object.wm_measure_circumference", text="Measure Circumference", icon='DRIVER_DISTANCE')
         col.separator()
-        col.operator("screen.region_quadview", text="Toggle Quad View", icon='SPLITSCREEN')
+        col.operator("screen.region_quadview", text="Toggle Quad View", icon='VIEW3D')
         col.separator()
         row = col.row(align=True)
         row.operator("ed.undo", icon='LOOP_BACK')
         row.operator("ed.redo", icon='LOOP_FORWARDS')
-
-
-def register():
-    bpy.utils.register_class(waspmed_crop_panel)
-    bpy.utils.register_class(define_crop_planes)
-    bpy.utils.register_class(crop_geometry)
-
-
-def unregister():
-    bpy.utils.unregister_class(waspmed_crop_panel)
-    bpy.utils.unregister_class(define_crop_planes)
-    bpy.utils.unregister_class(crop_geometry)
-
-
-if __name__ == "__main__":
-    register()
